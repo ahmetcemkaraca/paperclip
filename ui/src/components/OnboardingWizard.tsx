@@ -191,8 +191,8 @@ export function OnboardingWizard() {
         ? "gemini"
         : adapterType === "cursor"
           ? "agent"
-        : adapterType === "opencode_local"
-          ? "opencode"
+          : adapterType === "opencode_local"
+            ? "opencode"
           : adapterType === "copilot_cli"
             ? "gh"
             : "claude");
