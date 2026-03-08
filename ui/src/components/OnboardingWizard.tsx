@@ -54,6 +54,7 @@ type AdapterType =
   | "opencode_local"
   | "pi_local"
   | "cursor"
+  | "copilot_cli"
   | "process"
   | "http"
   | "openclaw_gateway";
@@ -166,7 +167,7 @@ export function OnboardingWizard() {
     enabled: Boolean(createdCompanyId) && onboardingOpen && step === 2
   });
   const isLocalAdapter =
-    adapterType === "claude_local" || adapterType === "codex_local" || adapterType === "opencode_local" || adapterType === "cursor";
+    adapterType === "claude_local" || adapterType === "codex_local" || adapterType === "opencode_local" || adapterType === "pi_local" || adapterType === "cursor" || adapterType === "copilot_cli";
   const effectiveAdapterCommand =
     command.trim() ||
     (adapterType === "codex_local"
@@ -175,7 +176,9 @@ export function OnboardingWizard() {
         ? "agent"
         : adapterType === "opencode_local"
           ? "opencode"
-          : "claude");
+          : adapterType === "copilot_cli"
+            ? "copilot"
+            : "claude");
 
   useEffect(() => {
     if (step !== 2) return;
@@ -706,6 +709,12 @@ export function OnboardingWizard() {
                           label: "Cursor",
                           icon: MousePointer2,
                           desc: "Local Cursor agent"
+                        },
+                        {
+                          value: "copilot_cli" as const,
+                          label: "GitHub Copilot",
+                          icon: Bot,
+                          desc: "Local GitHub Copilot agent"
                         }
                       ].map((opt) => (
                         <button
@@ -737,7 +746,9 @@ export function OnboardingWizard() {
                             if (nextType === "claude_local") {
                               setPendingClaudeModelInit(true);
                             }
-                            setModel("");
+                            if (nextType !== "opencode_local") {
+                              setModel("");
+                            }
                           }}
                         >
                           {opt.recommended && (
@@ -763,7 +774,8 @@ export function OnboardingWizard() {
                     adapterType === "codex_local" ||
                     adapterType === "opencode_local" ||
                     adapterType === "pi_local" ||
-                    adapterType === "cursor") && (
+                    adapterType === "cursor" ||
+                    adapterType === "copilot_cli") && (
                     <div className="space-y-3">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
