@@ -184,7 +184,7 @@ function quickstartDefaultsFromEnv(): {
       serveUi: parseBooleanFromEnv(process.env.SERVE_UI) ?? true,
     },
     auth: {
-      baseUrlMode: authBaseUrlMode,
+      baseUrlMode: authBaseUrlMode, disableSignUp: false,
       ...(authPublicBaseUrl ? { publicBaseUrl: authPublicBaseUrl } : {}),
     },
     storage: {

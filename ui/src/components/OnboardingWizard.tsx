@@ -746,7 +746,7 @@ export function OnboardingWizard() {
                             if (nextType === "claude_local") {
                               setPendingClaudeModelInit(true);
                             }
-                            if (nextType !== "opencode_local") {
+                            if ((nextType as string) !== "opencode_local") {
                               setModel("");
                             }
                           }}

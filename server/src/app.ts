@@ -2,6 +2,8 @@ import express, { Router, type Request as ExpressRequest } from "express";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import type { Db } from "@paperclipai/db";
 import type { DeploymentExposure, DeploymentMode } from "@paperclipai/shared";
 import type { StorageService } from "./storage/types.js";
@@ -46,6 +48,9 @@ export async function createApp(
   const app = express();
 
   app.use(express.json());
+  // Using helmet to set security headers. CSP and COEP are disabled because Vite dev server
+  // injects inline scripts and Mermaid diagrams inject inline SVG styles which would break under strict CSP.
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
   app.use(httpLogger);
   const privateHostnameGateEnabled =
     opts.deploymentMode === "authenticated" && opts.deploymentExposure === "private";
@@ -84,6 +89,13 @@ export async function createApp(
     });
   });
   if (opts.betterAuthHandler) {
+    const authLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 100,
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    app.use("/api/auth", authLimiter);
     app.all("/api/auth/*authPath", opts.betterAuthHandler);
   }
   app.use(llmRoutes(db));
