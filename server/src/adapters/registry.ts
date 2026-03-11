@@ -45,12 +45,6 @@ import {
 import {
   agentConfigurationDoc as piAgentConfigurationDoc,
 } from "@paperclipai/adapter-pi-local";
-import {
-  execute as copilotCliExecute,
-  testEnvironment as copilotCliTestEnvironment,
-  sessionCodec as copilotCliSessionCodec,
-} from "@paperclipai/adapter-copilot-cli/server";
-import { agentConfigurationDoc as copilotCliAgentConfigurationDoc, models as copilotCliModels } from "@paperclipai/adapter-copilot-cli";
 import { processAdapter } from "./process/index.js";
 import { httpAdapter } from "./http/index.js";
 
@@ -117,15 +111,12 @@ const piLocalAdapter: ServerAdapterModule = {
   agentConfigurationDoc: piAgentConfigurationDoc,
 };
 
-const copilotCliAdapter: ServerAdapterModule = {
-  type: "copilot_cli",
-  execute: copilotCliExecute,
-  testEnvironment: copilotCliTestEnvironment,
-  sessionCodec: copilotCliSessionCodec,
-  models: copilotCliModels,
-  supportsLocalAgentJwt: true,
-  agentConfigurationDoc: copilotCliAgentConfigurationDoc,
-};
+function isMissingOptionalDependency(err: unknown, pkgName: string): boolean {
+  if (!err || typeof err !== "object") return false;
+  const code = (err as any).code;
+  const message = String((err as any).message ?? "");
+  return code === "ERR_MODULE_NOT_FOUND" && message.includes(pkgName);
+}
 
 const adaptersByType = new Map<string, ServerAdapterModule>(
   [
@@ -135,11 +126,30 @@ const adaptersByType = new Map<string, ServerAdapterModule>(
     piLocalAdapter,
     cursorLocalAdapter,
     openclawGatewayAdapter,
-    copilotCliAdapter,
     processAdapter,
     httpAdapter,
   ].map((a) => [a.type, a]),
 );
+
+// Optional adapters: may not be installed in all environments.
+try {
+  const copilotServer = await import("@paperclipai/adapter-copilot-cli/server");
+  const copilot = await import("@paperclipai/adapter-copilot-cli");
+  const copilotCliAdapter: ServerAdapterModule = {
+    type: "copilot_cli",
+    execute: copilotServer.execute,
+    testEnvironment: copilotServer.testEnvironment,
+    sessionCodec: copilotServer.sessionCodec,
+    models: copilot.models,
+    supportsLocalAgentJwt: true,
+    agentConfigurationDoc: copilot.agentConfigurationDoc,
+  };
+  adaptersByType.set(copilotCliAdapter.type, copilotCliAdapter);
+} catch (err) {
+  if (!isMissingOptionalDependency(err, "@paperclipai/adapter-copilot-cli")) {
+    throw err;
+  }
+}
 
 export function getServerAdapter(type: string): ServerAdapterModule {
   const adapter = adaptersByType.get(type);
