@@ -54,6 +54,7 @@ type AdapterType =
   | "opencode_local"
   | "pi_local"
   | "cursor"
+  | "copilot_cli"
   | "process"
   | "http"
   | "openclaw_gateway";
@@ -165,7 +166,7 @@ export function OnboardingWizard() {
     enabled: Boolean(createdCompanyId) && onboardingOpen && step === 2
   });
   const isLocalAdapter =
-    adapterType === "claude_local" || adapterType === "codex_local" || adapterType === "opencode_local" || adapterType === "cursor";
+    adapterType === "claude_local" || adapterType === "codex_local" || adapterType === "opencode_local" || adapterType === "pi_local" || adapterType === "cursor" || adapterType === "copilot_cli";
   const effectiveAdapterCommand =
     command.trim() ||
     (adapterType === "codex_local"
@@ -174,7 +175,9 @@ export function OnboardingWizard() {
         ? "agent"
         : adapterType === "opencode_local"
           ? "opencode"
-          : "claude");
+          : adapterType === "copilot_cli"
+            ? "gh"
+            : "claude");
 
   useEffect(() => {
     if (step !== 2) return;
@@ -680,6 +683,12 @@ export function OnboardingWizard() {
                           label: "Cursor",
                           icon: MousePointer2,
                           desc: "Local Cursor agent"
+                        },
+                        {
+                          value: "copilot_cli" as const,
+                          label: "GitHub Copilot",
+                          icon: Bot,
+                          desc: "Local GitHub Copilot agent"
                         }
                       ].map((opt) => (
                         <button
@@ -734,7 +743,8 @@ export function OnboardingWizard() {
                     adapterType === "codex_local" ||
                     adapterType === "opencode_local" ||
                     adapterType === "pi_local" ||
-                    adapterType === "cursor") && (
+                    adapterType === "cursor" ||
+                    adapterType === "copilot_cli") && (
                     <div className="space-y-3">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
@@ -899,24 +909,30 @@ export function OnboardingWizard() {
 
                       <div className="rounded-md border border-border/70 bg-muted/20 px-2.5 py-2 text-[11px] space-y-1.5">
                         <p className="font-medium">Manual debug</p>
-                        <p className="text-muted-foreground font-mono break-all">
+                          <p className="text-muted-foreground font-mono break-all">
                           {adapterType === "cursor"
                             ? `${effectiveAdapterCommand} -p --mode ask --output-format json \"Respond with hello.\"`
                             : adapterType === "codex_local"
                             ? `${effectiveAdapterCommand} exec --json -`
                             : adapterType === "opencode_local"
                               ? `${effectiveAdapterCommand} run --format json "Respond with hello."`
+                            : adapterType === "copilot_cli"
+                              ? `${effectiveAdapterCommand} copilot --help`
                             : `${effectiveAdapterCommand} --print - --output-format stream-json --verbose`}
                         </p>
                         <p className="text-muted-foreground">
                           Prompt:{" "}
                           <span className="font-mono">Respond with hello.</span>
                         </p>
-                        {adapterType === "cursor" || adapterType === "codex_local" || adapterType === "opencode_local" ? (
+                        {adapterType === "cursor" || adapterType === "codex_local" || adapterType === "opencode_local" || adapterType === "copilot_cli" ? (
                           <p className="text-muted-foreground">
                             If auth fails, set{" "}
                             <span className="font-mono">
-                              {adapterType === "cursor" ? "CURSOR_API_KEY" : "OPENAI_API_KEY"}
+                              {adapterType === "cursor"
+                                ? "CURSOR_API_KEY"
+                                : adapterType === "copilot_cli"
+                                  ? "GITHUB_TOKEN"
+                                  : "OPENAI_API_KEY"}
                             </span>{" "}
                             in
                             env or run{" "}
@@ -925,7 +941,9 @@ export function OnboardingWizard() {
                                 ? "agent login"
                                 : adapterType === "codex_local"
                                   ? "codex login"
-                                  : "opencode auth login"}
+                                  : adapterType === "copilot_cli"
+                                    ? "gh auth login"
+                                    : "opencode auth login"}
                             </span>.
                           </p>
                         ) : (
