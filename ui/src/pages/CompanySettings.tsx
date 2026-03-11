@@ -34,6 +34,7 @@ export function CompanySettings() {
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
   const [brandColor, setBrandColor] = useState("");
+  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(1);
 
   // Sync local state from selected company
   useEffect(() => {
@@ -41,6 +42,7 @@ export function CompanySettings() {
     setCompanyName(selectedCompany.name);
     setDescription(selectedCompany.description ?? "");
     setBrandColor(selectedCompany.brandColor ?? "");
+    setMaxConcurrentAgents(selectedCompany.maxConcurrentAgents ?? 1);
   }, [selectedCompany]);
 
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -69,6 +71,16 @@ export function CompanySettings() {
     mutationFn: (requireApproval: boolean) =>
       companiesApi.update(selectedCompanyId!, {
         requireBoardApprovalForNewAgents: requireApproval
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    }
+  });
+
+  const concurrentAgentsMutation = useMutation({
+    mutationFn: (maxAgents: number) =>
+      companiesApi.update(selectedCompanyId!, {
+        maxConcurrentAgents: Math.max(1, Math.min(100, maxAgents))
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
@@ -297,13 +309,39 @@ export function CompanySettings() {
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Hiring
         </div>
-        <div className="rounded-md border border-border px-4 py-3">
+        <div className="space-y-3 rounded-md border border-border px-4 py-3">
           <ToggleField
             label="Require board approval for new hires"
             hint="New agent hires stay pending until approved by board."
             checked={!!selectedCompany.requireBoardApprovalForNewAgents}
             onChange={(v) => settingsMutation.mutate(v)}
           />
+          <div className="border-t border-border pt-3">
+            <Field
+              label="Max concurrent agents"
+              hint="Maximum number of agents that can run simultaneously across your company."
+            >
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={maxConcurrentAgents}
+                onChange={(e) => setMaxConcurrentAgents(parseInt(e.target.value, 10))}
+                onBlur={() => concurrentAgentsMutation.mutate(maxConcurrentAgents)}
+                className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
+              />
+            </Field>
+            {concurrentAgentsMutation.isSuccess && (
+              <span className="text-xs text-muted-foreground">Saved</span>
+            )}
+            {concurrentAgentsMutation.isError && (
+              <span className="text-xs text-destructive">
+                {concurrentAgentsMutation.error instanceof Error
+                  ? concurrentAgentsMutation.error.message
+                  : "Failed to save"}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
