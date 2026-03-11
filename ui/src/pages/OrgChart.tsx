@@ -503,8 +503,24 @@ function BulkEditMenu({ selectedAgentIds, companyId, onClose, onSuccess }: BulkE
   const [selectedAdapter, setSelectedAdapter] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  
   const queryClient = useQuery({
     queryKey: queryKeys.agents.list(companyId),
+  });
+
+  const AVAILABLE_ADAPTERS = [
+    { type: "claude_local", label: "Claude Local" },
+    { type: "codex_local", label: "Codex Local" },
+    { type: "cursor_local", label: "Cursor Local" },
+    { type: "opencode_local", label: "OpenCode Local" },
+    { type: "pi_local", label: "Pi Local" },
+  ];
+
+  // Fetch models for selected adapter
+  const { data: adapterModels = [], isLoading: modelsLoading } = useQuery({
+    queryKey: selectedAdapter ? queryKeys.agents.adapterModels(companyId, selectedAdapter) : ["disabled"],
+    queryFn: () => selectedAdapter ? agentsApi.adapterModels(companyId, selectedAdapter) : Promise.resolve([]),
+    enabled: Boolean(selectedAdapter),
   });
 
   const updateMutation = useMutation({
@@ -554,15 +570,50 @@ function BulkEditMenu({ selectedAgentIds, companyId, onClose, onSuccess }: BulkE
               onChange={(e) => {
                 setSelectedAdapter(e.target.value);
                 setSelectedModel("");
+                setError(null);
               }}
               className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
             >
               <option value="">Select adapter...</option>
-              <option value="claude_local">Claude Local</option>
-              <option value="codex_local">Codex Local</option>
-              <option value="opencode_local">OpenCode Local</option>
+              {AVAILABLE_ADAPTERS.map((adapter) => (
+                <option key={adapter.type} value={adapter.type}>
+                  {adapter.label}
+                </option>
+              ))}
             </select>
           </div>
+
+          {/* Model select - only show if adapter is selected */}
+          {selectedAdapter && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Model (Optional)</label>
+              {modelsLoading ? (
+                <div className="w-full px-3 py-2 border border-border rounded-md bg-muted text-sm text-muted-foreground">
+                  Loading models...
+                </div>
+              ) : adapterModels.length > 0 ? (
+                <select
+                  value={selectedModel}
+                  onChange={(e) => {
+                    setSelectedModel(e.target.value);
+                    setError(null);
+                  }}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                >
+                  <option value="">Select model (optional)...</option>
+                  {adapterModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full px-3 py-2 border border-border rounded-md bg-muted text-sm text-muted-foreground">
+                  No models available for this adapter
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Error */}
@@ -573,7 +624,7 @@ function BulkEditMenu({ selectedAgentIds, companyId, onClose, onSuccess }: BulkE
           <button
             className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm disabled:opacity-50"
             onClick={handleUpdate}
-            disabled={updateMutation.isPending || !selectedAdapter}
+            disabled={updateMutation.isPending || !selectedAdapter || modelsLoading}
           >
             {updateMutation.isPending ? "Updating..." : `Update ${selectedAgentIds.length} Agents`}
           </button>

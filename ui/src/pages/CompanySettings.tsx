@@ -20,6 +20,7 @@ import {
   unsubscribeFromPushNotifications,
   getPushSubscription,
   sendSubscriptionToServer,
+  fetchVapidPublicKey,
 } from "../lib/notifications";
 
 type AgentSnippetInput = {
@@ -236,9 +237,8 @@ export function CompanySettings() {
         setIsSubscribed(false);
       } else {
         // Subscribe
-        // For now, we'll use a placeholder VAPID key
-        // In production, this should be fetched from the server config endpoint
-        const vapidPublicKey = "BJ1p9zH3JH-w64qdN2v4qlPBCvKJHxR1L2s5X6dGzSyCnJ6OYkPuZnA8N5YkR3YkH2wX4z1F7c3D5e6G8i9J0k1L2m3N4o5P6q7R8s9T0u";
+        // Fetch VAPID public key from server
+        const vapidPublicKey = await fetchVapidPublicKey();
 
         const subscription = await subscribeToPushNotifications(vapidPublicKey);
         await sendSubscriptionToServer(selectedCompanyId, subscription);

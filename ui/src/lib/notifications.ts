@@ -203,3 +203,20 @@ function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array | null | undefined
   }
   return window.btoa(binary);
 }
+
+/**
+ * Fetch VAPID public key from server
+ */
+export async function fetchVapidPublicKey(): Promise<string> {
+  try {
+    const response = await fetch("/api/notifications/vapid-public-key");
+    if (!response.ok) {
+      throw new Error(`Failed to fetch VAPID public key: ${response.statusText}`);
+    }
+    const data = (await response.json()) as { vapidPublicKey: string };
+    return data.vapidPublicKey;
+  } catch (error) {
+    console.error("Failed to fetch VAPID public key:", error);
+    throw error;
+  }
+}

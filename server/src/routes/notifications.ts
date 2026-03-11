@@ -109,5 +109,22 @@ export function notificationRoutes(db: Db) {
     }
   );
 
+  // GET /notifications/vapid-public-key
+  // Public endpoint to get VAPID public key for client-side push subscription
+  router.get("/notifications/vapid-public-key", (req, res) => {
+    const vapidPublicKey = process.env.PAPERCLIP_VAPID_PUBLIC || "";
+
+    if (!vapidPublicKey) {
+      return res.status(500).json({
+        success: false,
+        message: "VAPID public key not configured on server",
+      });
+    }
+
+    res.json({
+      vapidPublicKey,
+    });
+  });
+
   return router;
 }
