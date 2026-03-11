@@ -379,8 +379,8 @@ export function AgentDetail() {
   });
 
   const updatePermissions = useMutation({
-    mutationFn: (canCreateAgents: boolean) =>
-      agentsApi.updatePermissions(agentLookupRef, { canCreateAgents }, resolvedCompanyId ?? undefined),
+    mutationFn: (patch: { canCreateAgents?: boolean; canInvokeOtherAgents?: boolean }) =>
+      agentsApi.updatePermissions(agentLookupRef, patch, resolvedCompanyId ?? undefined),
     onSuccess: () => {
       setActionError(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(routeAgentRef) });
@@ -928,7 +928,10 @@ function AgentConfigurePage({
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
-  updatePermissions: { mutate: (canCreate: boolean) => void; isPending: boolean };
+  updatePermissions: {
+    mutate: (patch: { canCreateAgents?: boolean; canInvokeOtherAgents?: boolean }) => void;
+    isPending: boolean;
+  };
 }) {
   const queryClient = useQueryClient();
   const [revisionsOpen, setRevisionsOpen] = useState(false);
@@ -1034,7 +1037,10 @@ function ConfigurationTab({
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
-  updatePermissions: { mutate: (canCreate: boolean) => void; isPending: boolean };
+  updatePermissions: {
+    mutate: (patch: { canCreateAgents?: boolean; canInvokeOtherAgents?: boolean }) => void;
+    isPending: boolean;
+  };
 }) {
   const queryClient = useQueryClient();
 
@@ -1077,19 +1083,42 @@ function ConfigurationTab({
 
       <div>
         <h3 className="text-sm font-medium mb-3">Permissions</h3>
-        <div className="border border-border rounded-lg p-4">
-          <div className="flex items-center justify-between text-sm">
-            <span>Can create new agents</span>
+        <div className="border border-border rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between text-sm gap-3">
+            <div className="min-w-0">
+              <div className="font-medium">Can create new agents</div>
+              <div className="text-xs text-muted-foreground">Allows this agent to create/hire agents via the API.</div>
+            </div>
             <Button
               variant={agent.permissions?.canCreateAgents ? "default" : "outline"}
               size="sm"
-              className="h-7 px-2.5 text-xs"
+              className="h-7 px-2.5 text-xs shrink-0"
               onClick={() =>
-                updatePermissions.mutate(!Boolean(agent.permissions?.canCreateAgents))
+                updatePermissions.mutate({ canCreateAgents: !Boolean(agent.permissions?.canCreateAgents) })
               }
               disabled={updatePermissions.isPending}
             >
               {agent.permissions?.canCreateAgents ? "Enabled" : "Disabled"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between text-sm gap-3">
+            <div className="min-w-0">
+              <div className="font-medium">Can invoke other agents</div>
+              <div className="text-xs text-muted-foreground">
+                Allows this agent (with an agent API key) to wake up / invoke other agents in this company.
+              </div>
+            </div>
+            <Button
+              variant={agent.permissions?.canInvokeOtherAgents ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2.5 text-xs shrink-0"
+              onClick={() =>
+                updatePermissions.mutate({ canInvokeOtherAgents: !Boolean(agent.permissions?.canInvokeOtherAgents) })
+              }
+              disabled={updatePermissions.isPending}
+            >
+              {agent.permissions?.canInvokeOtherAgents ? "Enabled" : "Disabled"}
             </Button>
           </div>
         </div>
