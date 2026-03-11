@@ -33,6 +33,7 @@ export {
   testAdapterEnvironmentSchema,
   agentPermissionsSchema,
   updateAgentPermissionsSchema,
+  batchUpdateAgentsSchema,
   type CreateAgent,
   type CreateAgentHire,
   type UpdateAgent,
@@ -42,6 +43,7 @@ export {
   type ResetAgentSession,
   type TestAdapterEnvironment,
   type UpdateAgentPermissions,
+  type BatchUpdateAgents,
 } from "./agent.js";
 
 export {
@@ -49,16 +51,19 @@ export {
   updateProjectSchema,
   createProjectWorkspaceSchema,
   updateProjectWorkspaceSchema,
+  projectExecutionWorkspacePolicySchema,
   type CreateProject,
   type UpdateProject,
   type CreateProjectWorkspace,
   type UpdateProjectWorkspace,
+  type ProjectExecutionWorkspacePolicy,
 } from "./project.js";
 
 export {
   createIssueSchema,
   createIssueLabelSchema,
   updateIssueSchema,
+  issueExecutionWorkspaceSettingsSchema,
   checkoutIssueSchema,
   addIssueCommentSchema,
   linkIssueApprovalSchema,
@@ -66,6 +71,7 @@ export {
   type CreateIssue,
   type CreateIssueLabel,
   type UpdateIssue,
+  type IssueExecutionWorkspaceSettings,
   type CheckoutIssue,
   type AddIssueComment,
   type LinkIssueApproval,

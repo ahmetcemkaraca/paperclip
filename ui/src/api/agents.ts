@@ -144,4 +144,12 @@ export const agentsApi = {
   ) => api.post<HeartbeatRun | { status: "skipped" }>(agentPath(id, companyId, "/wakeup"), data),
   loginWithClaude: (id: string, companyId?: string) =>
     api.post<ClaudeLoginResult>(agentPath(id, companyId, "/claude-login"), {}),
+  batchUpdate: (
+    companyId: string,
+    data: {
+      agentIds: string[];
+      adapterType?: string;
+      runtimeConfig?: Record<string, unknown>;
+    },
+  ) => api.post<{ updated: number }>(`/companies/${companyId}/agents/batch-update`, data),
 };

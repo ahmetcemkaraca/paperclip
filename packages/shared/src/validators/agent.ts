@@ -99,3 +99,11 @@ export const updateAgentPermissionsSchema = z.object({
 });
 
 export type UpdateAgentPermissions = z.infer<typeof updateAgentPermissionsSchema>;
+
+export const batchUpdateAgentsSchema = z.object({
+  agentIds: z.array(z.string().uuid()),
+  adapterType: z.string().optional(),
+  runtimeConfig: z.record(z.unknown()).optional(),
+});
+
+export type BatchUpdateAgents = z.infer<typeof batchUpdateAgentsSchema>;

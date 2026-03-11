@@ -1,0 +1,1 @@
+ALTER TABLE "companies" ADD COLUMN "max_concurrent_agents" integer DEFAULT 1 NOT NULL;

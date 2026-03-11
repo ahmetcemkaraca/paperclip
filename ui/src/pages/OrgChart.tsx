@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@/lib/router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { agentsApi, type OrgNode } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -141,6 +141,9 @@ export function OrgChart() {
   const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
+
+  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
+  const [showBulkMenu, setShowBulkMenu] = useState(false);
 
   const { data: orgTree, isLoading } = useQuery({
     queryKey: queryKeys.org(selectedCompanyId!),
@@ -362,6 +365,38 @@ export function OrgChart() {
         </g>
       </svg>
 
+      {/* Selection info bar */}
+      {selectedAgentIds.size > 0 && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 bg-background border border-border rounded-lg px-4 py-2 shadow-lg flex items-center gap-3">
+          <span className="text-sm font-medium">{selectedAgentIds.size} selected</span>
+          <button
+            className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+            onClick={() => setShowBulkMenu(!showBulkMenu)}
+          >
+            Bulk Edit
+          </button>
+          <button
+            className="px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setSelectedAgentIds(new Set())}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* Bulk edit menu */}
+      {showBulkMenu && selectedAgentIds.size > 0 && (
+        <BulkEditMenu
+          selectedAgentIds={Array.from(selectedAgentIds)}
+          companyId={selectedCompanyId!}
+          onClose={() => setShowBulkMenu(false)}
+          onSuccess={() => {
+            setSelectedAgentIds(new Set());
+            setShowBulkMenu(false);
+          }}
+        />
+      )}
+
       {/* Card layer */}
       <div
         className="absolute inset-0"
@@ -378,14 +413,41 @@ export function OrgChart() {
             <div
               key={node.id}
               data-org-card
-              className="absolute bg-card border border-border rounded-lg shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
+              className={`absolute rounded-lg shadow-sm hover:shadow-md transition-[box-shadow,border-color,background-color] duration-150 cursor-pointer select-none border-2 ${
+                selectedAgentIds.has(node.id)
+                  ? "bg-primary/10 border-primary"
+                  : "bg-card border-border hover:border-foreground/20"
+              }`}
               style={{
                 left: node.x,
                 top: node.y,
                 width: CARD_W,
                 minHeight: CARD_H,
               }}
-              onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
+              onClick={(e) => {
+                if (e.ctrlKey || e.metaKey) {
+                  // Multi-select with Ctrl/Cmd
+                  const newSelected = new Set(selectedAgentIds);
+                  if (newSelected.has(node.id)) {
+                    newSelected.delete(node.id);
+                  } else {
+                    newSelected.add(node.id);
+                  }
+                  setSelectedAgentIds(newSelected);
+                } else if (selectedAgentIds.size > 0) {
+                  // If already in selection mode, toggle selection
+                  const newSelected = new Set(selectedAgentIds);
+                  if (newSelected.has(node.id)) {
+                    newSelected.delete(node.id);
+                  } else {
+                    newSelected.add(node.id);
+                  }
+                  setSelectedAgentIds(newSelected);
+                } else {
+                  // Normal click - navigate to agent
+                  navigate(agent ? agentUrl(agent) : `/agents/${node.id}`);
+                }
+              }}
             >
               <div className="flex items-center px-4 py-3 gap-3">
                 {/* Agent icon + status dot */}
@@ -425,4 +487,103 @@ const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
 
 function roleLabel(role: string): string {
   return roleLabels[role] ?? role;
+}
+
+// ── Bulk Edit Menu Component ────────────────────────────────────────────
+
+interface BulkEditMenuProps {
+  selectedAgentIds: string[];
+  companyId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function BulkEditMenu({ selectedAgentIds, companyId, onClose, onSuccess }: BulkEditMenuProps) {
+  const [selectedAdapter, setSelectedAdapter] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQuery({
+    queryKey: queryKeys.agents.list(companyId),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: {
+      agentIds: string[];
+      adapterType?: string;
+      runtimeConfig?: Record<string, unknown>;
+    }) => agentsApi.batchUpdate(companyId, data),
+    onSuccess: () => {
+      queryClient.refetch();
+      onSuccess();
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Update failed");
+    },
+  });
+
+  const handleUpdate = () => {
+    if (!selectedAdapter) {
+      setError("Please select an adapter");
+      return;
+    }
+
+    const payload: any = {
+      agentIds: selectedAgentIds,
+      adapterType: selectedAdapter,
+    };
+
+    if (selectedModel) {
+      payload.runtimeConfig = { model: selectedModel };
+    }
+
+    updateMutation.mutate(payload);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center pointer-events-auto">
+      <div className="bg-background rounded-lg border border-border p-6 w-96 shadow-lg">
+        <h2 className="text-lg font-semibold mb-4">Bulk Edit Agents</h2>
+
+        <div className="space-y-4">
+          {/* Adapter select */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Adapter</label>
+            <select
+              value={selectedAdapter}
+              onChange={(e) => {
+                setSelectedAdapter(e.target.value);
+                setSelectedModel("");
+              }}
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+            >
+              <option value="">Select adapter...</option>
+              <option value="claude_local">Claude Local</option>
+              <option value="codex_local">Codex Local</option>
+              <option value="opencode_local">OpenCode Local</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && <div className="text-sm text-destructive mt-4">{error}</div>}
+
+        {/* Actions */}
+        <div className="flex gap-2 mt-6">
+          <button
+            className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm disabled:opacity-50"
+            onClick={handleUpdate}
+            disabled={updateMutation.isPending || !selectedAdapter}
+          >
+            {updateMutation.isPending ? "Updating..." : `Update ${selectedAgentIds.length} Agents`}
+          </button>
+          <button
+            className="px-4 py-2 border border-border rounded hover:bg-muted transition-colors text-sm"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
