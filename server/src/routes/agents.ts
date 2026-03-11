@@ -1221,8 +1221,15 @@ export function agentRoutes(db: Db) {
     assertCompanyAccess(req, agent.companyId);
 
     if (req.actor.type === "agent" && req.actor.agentId !== id) {
-      res.status(403).json({ error: "Agent can only invoke itself" });
-      return;
+      const actorAgent = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
+      const allowed =
+        actorAgent &&
+        actorAgent.companyId === agent.companyId &&
+        Boolean(actorAgent.permissions?.canInvokeOtherAgents);
+      if (!allowed) {
+        res.status(403).json({ error: "Agent can only invoke itself" });
+        return;
+      }
     }
 
     const run = await heartbeat.wakeup(id, {
@@ -1270,8 +1277,15 @@ export function agentRoutes(db: Db) {
     assertCompanyAccess(req, agent.companyId);
 
     if (req.actor.type === "agent" && req.actor.agentId !== id) {
-      res.status(403).json({ error: "Agent can only invoke itself" });
-      return;
+      const actorAgent = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
+      const allowed =
+        actorAgent &&
+        actorAgent.companyId === agent.companyId &&
+        Boolean(actorAgent.permissions?.canInvokeOtherAgents);
+      if (!allowed) {
+        res.status(403).json({ error: "Agent can only invoke itself" });
+        return;
+      }
     }
 
     const run = await heartbeat.invoke(

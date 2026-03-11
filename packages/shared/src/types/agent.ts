@@ -6,6 +6,8 @@ import type {
 
 export interface AgentPermissions {
   canCreateAgents: boolean;
+  /** Allows this agent (when authenticated via agent API key) to wakeup/invoke other agents in the same company. */
+  canInvokeOtherAgents: boolean;
 }
 
 export interface Agent {
