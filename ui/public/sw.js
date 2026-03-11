@@ -40,3 +40,73 @@ self.addEventListener("fetch", (event) => {
       })
   );
 });
+
+// Push notification handler
+self.addEventListener("push", (event) => {
+  if (!event.data) {
+    console.error("Push event received but no data");
+    return;
+  }
+
+  let notificationData = {
+    title: "Paperclip",
+    body: "New notification",
+    icon: "/paperclip.png",
+    badge: "/paperclip-badge.png",
+    tag: "paperclip-notification",
+    requireInteraction: false,
+  };
+
+  try {
+    const payload = event.data.json();
+    notificationData = {
+      ...notificationData,
+      ...payload,
+    };
+  } catch (e) {
+    // If payload is not JSON, use it as the body
+    notificationData.body = event.data.text();
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(notificationData.title, {
+      body: notificationData.body,
+      icon: notificationData.icon,
+      badge: notificationData.badge,
+      tag: notificationData.tag,
+      requireInteraction: notificationData.requireInteraction,
+      data: notificationData.data || {},
+    })
+  );
+});
+
+// Notification click handler
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  const url = data.url || "/";
+
+  // Open or focus the application window
+  event.waitUntil(
+    clients.matchAll({ type: "window" }).then((windowClients) => {
+      // Check if window is already open
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url === url && "focus" in client) {
+          return client.focus();
+        }
+      }
+      // Open new window if not found
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
+    })
+  );
+});
+
+// Notification close handler (for analytics if needed)
+self.addEventListener("notificationclose", (event) => {
+  // Optional: track closed notifications for analytics
+  console.debug("Notification closed", event.notification.tag);
+});
