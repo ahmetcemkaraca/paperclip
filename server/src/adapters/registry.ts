@@ -141,6 +141,7 @@ try {
     testEnvironment: copilotServer.testEnvironment,
     sessionCodec: copilotServer.sessionCodec,
     models: copilot.models,
+    listModels: () => copilotServer.listCopilotModels(),
     supportsLocalAgentJwt: true,
     agentConfigurationDoc: copilot.agentConfigurationDoc,
   };

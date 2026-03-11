@@ -809,6 +809,17 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 numberHint={help.intervalSec}
                 showNumber={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
               />
+              <ToggleField
+                label="Allow other agents to wake this agent (debug)"
+                hint={help.wakeOnDemand}
+                checked={eff(
+                  "heartbeat",
+                  "wakeOnDemand",
+                  heartbeat.wakeOnDemand !== false,
+                )}
+                onChange={(v) => mark("heartbeat", "wakeOnDemand", v)}
+                onColor="red"
+              />
             </div>
             <CollapsibleSection
               title="Advanced Run Policy"
@@ -817,16 +828,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
               onToggle={() => setRunPolicyAdvancedOpen(!runPolicyAdvancedOpen)}
             >
             <div className="space-y-3">
-              <ToggleField
-                label="Wake on demand"
-                hint={help.wakeOnDemand}
-                checked={eff(
-                  "heartbeat",
-                  "wakeOnDemand",
-                  heartbeat.wakeOnDemand !== false,
-                )}
-                onChange={(v) => mark("heartbeat", "wakeOnDemand", v)}
-              />
               <Field label="Cooldown (sec)" hint={help.cooldownSec}>
                 <DraftNumberInput
                   value={eff(
