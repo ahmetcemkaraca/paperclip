@@ -27,6 +27,7 @@ type AdvancedAdapterType =
   | "opencode_local"
   | "pi_local"
   | "cursor"
+  | "copilot_cli"
   | "openclaw_gateway";
 
 const ADVANCED_ADAPTER_OPTIONS: Array<{
@@ -67,6 +68,12 @@ const ADVANCED_ADAPTER_OPTIONS: Array<{
     label: "Cursor",
     icon: MousePointer2,
     desc: "Local Cursor agent",
+  },
+  {
+    value: "copilot_cli",
+    label: "GitHub Copilot",
+    icon: Bot,
+    desc: "Local GitHub Copilot agent",
   },
   {
     value: "openclaw_gateway",
