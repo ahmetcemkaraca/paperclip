@@ -155,6 +155,7 @@ export const APPROVAL_TYPES = [
   "hire_agent",
   "approve_ceo_strategy",
   "update_company_system_prompt",
+  "make_request",
 ] as const;
 export type ApprovalType = (typeof APPROVAL_TYPES)[number];
 
