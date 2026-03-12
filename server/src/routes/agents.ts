@@ -15,6 +15,7 @@ import {
   updateAgentInstructionsPathSchema,
   wakeAgentSchema,
   updateAgentSchema,
+  batchUpdateAgentsSchema,
 } from "@paperclipai/shared";
 import { validate } from "../middleware/validate.js";
 import {
@@ -30,6 +31,7 @@ import {
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { findServerAdapter, listAdapterModels } from "../adapters/index.js";
+import { parseObject } from "../adapters/utils.js";
 import { redactEventPayload } from "../redaction.js";
 import { runClaudeLogin } from "@paperclipai/adapter-claude-local/server";
 import {
@@ -1029,6 +1031,58 @@ export function agentRoutes(db: Db) {
 
     res.json(agent);
   });
+
+  // Batch update agents in a company
+  router.post(
+    "/companies/:companyId/agents/batch-update",
+    validate(batchUpdateAgentsSchema),
+    async (req, res) => {
+      assertBoard(req);
+      const companyId = req.params.companyId as string;
+      assertCompanyAccess(req, companyId);
+
+      const { agentIds, adapterType, runtimeConfig } = req.body;
+      if (agentIds.length === 0) {
+        res.status(400).json({ error: "At least one agent ID required" });
+        return;
+      }
+
+      let updated = 0;
+      const actor = getActorInfo(req);
+
+      for (const agentId of agentIds) {
+        const agent = await svc.getById(agentId);
+        if (!agent || agent.companyId !== companyId) continue;
+
+        const updateData: Record<string, unknown> = {};
+        if (adapterType) updateData.adapterType = adapterType;
+        if (runtimeConfig) {
+          const currentRuntime = parseObject(agent.runtimeConfig);
+          updateData.runtimeConfig = { ...currentRuntime, ...runtimeConfig };
+        }
+
+        if (Object.keys(updateData).length === 0) continue;
+
+        const updatedAgent = await svc.update(agentId, updateData);
+        if (updatedAgent) {
+          updated++;
+          await logActivity(db, {
+            companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "agent.batch_updated",
+            entityType: "agent",
+            entityId: agentId,
+            details: updateData,
+          });
+        }
+      }
+
+      res.json({ updated });
+    },
+  );
 
   router.post("/agents/:id/pause", async (req, res) => {
     assertBoard(req);

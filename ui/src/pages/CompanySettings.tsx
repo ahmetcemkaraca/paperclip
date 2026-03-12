@@ -6,13 +6,21 @@ import { companiesApi } from "../api/companies";
 import { accessApi } from "../api/access";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { Settings, Check } from "lucide-react";
+import { Settings, Check, Bell } from "lucide-react";
 import { CompanyPatternIcon } from "../components/CompanyPatternIcon";
 import {
   Field,
   ToggleField,
   HintIcon
 } from "../components/agent-config-primitives";
+import {
+  isNotificationsSupported,
+  getNotificationPermission,
+  subscribeToPushNotifications,
+  unsubscribeFromPushNotifications,
+  getPushSubscription,
+  sendSubscriptionToServer,
+} from "../lib/notifications";
 
 type AgentSnippetInput = {
   onboardingTextUrl: string;
@@ -34,6 +42,16 @@ export function CompanySettings() {
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
   const [brandColor, setBrandColor] = useState("");
+  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(1);
+
+  // Notification settings
+  const [notificationsSupported] = useState(isNotificationsSupported());
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    getNotificationPermission()
+  );
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
 
   // Sync local state from selected company
   useEffect(() => {
@@ -41,7 +59,24 @@ export function CompanySettings() {
     setCompanyName(selectedCompany.name);
     setDescription(selectedCompany.description ?? "");
     setBrandColor(selectedCompany.brandColor ?? "");
+    setMaxConcurrentAgents(selectedCompany.maxConcurrentAgents ?? 1);
   }, [selectedCompany]);
+
+  // Check subscription status on mount
+  useEffect(() => {
+    if (!notificationsSupported) return;
+
+    const checkSubscription = async () => {
+      try {
+        const subscription = await getPushSubscription();
+        setIsSubscribed(!!subscription);
+      } catch (error) {
+        console.error("Failed to check subscription:", error);
+      }
+    };
+
+    checkSubscription();
+  }, [notificationsSupported]);
 
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSnippet, setInviteSnippet] = useState<string | null>(null);
@@ -69,6 +104,16 @@ export function CompanySettings() {
     mutationFn: (requireApproval: boolean) =>
       companiesApi.update(selectedCompanyId!, {
         requireBoardApprovalForNewAgents: requireApproval
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    }
+  });
+
+  const concurrentAgentsMutation = useMutation({
+    mutationFn: (maxAgents: number) =>
+      companiesApi.update(selectedCompanyId!, {
+        maxConcurrentAgents: Math.max(1, Math.min(100, maxAgents))
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
@@ -176,6 +221,36 @@ export function CompanySettings() {
       description: description.trim() || null,
       brandColor: brandColor || null
     });
+  }
+
+  async function handleNotificationToggle() {
+    if (!selectedCompanyId) return;
+
+    setNotificationLoading(true);
+    setNotificationError(null);
+
+    try {
+      if (isSubscribed) {
+        // Unsubscribe
+        await unsubscribeFromPushNotifications();
+        setIsSubscribed(false);
+      } else {
+        // Subscribe
+        // For now, we'll use a placeholder VAPID key
+        // In production, this should be fetched from the server config endpoint
+        const vapidPublicKey = "BJ1p9zH3JH-w64qdN2v4qlPBCvKJHxR1L2s5X6dGzSyCnJ6OYkPuZnA8N5YkR3YkH2wX4z1F7c3D5e6G8i9J0k1L2m3N4o5P6q7R8s9T0u";
+
+        const subscription = await subscribeToPushNotifications(vapidPublicKey);
+        await sendSubscriptionToServer(selectedCompanyId, subscription);
+        setIsSubscribed(true);
+        setNotificationPermission(Notification.permission);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update notification settings";
+      setNotificationError(message);
+    } finally {
+      setNotificationLoading(false);
+    }
   }
 
   return (
@@ -297,13 +372,39 @@ export function CompanySettings() {
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Hiring
         </div>
-        <div className="rounded-md border border-border px-4 py-3">
+        <div className="space-y-3 rounded-md border border-border px-4 py-3">
           <ToggleField
             label="Require board approval for new hires"
             hint="New agent hires stay pending until approved by board."
             checked={!!selectedCompany.requireBoardApprovalForNewAgents}
             onChange={(v) => settingsMutation.mutate(v)}
           />
+          <div className="border-t border-border pt-3">
+            <Field
+              label="Max concurrent agents"
+              hint="Maximum number of agents that can run simultaneously across your company."
+            >
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={maxConcurrentAgents}
+                onChange={(e) => setMaxConcurrentAgents(parseInt(e.target.value, 10))}
+                onBlur={() => concurrentAgentsMutation.mutate(maxConcurrentAgents)}
+                className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
+              />
+            </Field>
+            {concurrentAgentsMutation.isSuccess && (
+              <span className="text-xs text-muted-foreground">Saved</span>
+            )}
+            {concurrentAgentsMutation.isError && (
+              <span className="text-xs text-destructive">
+                {concurrentAgentsMutation.error instanceof Error
+                  ? concurrentAgentsMutation.error.message
+                  : "Failed to save"}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -378,6 +479,56 @@ export function CompanySettings() {
           )}
         </div>
       </div>
+
+      {/* Notifications */}
+      {notificationsSupported && (
+        <div className="space-y-4">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <Bell className="h-4 w-4" />
+            Notifications
+          </div>
+          <div className="space-y-3 rounded-md border border-border px-4 py-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Enable browser push notifications to receive updates when the browser is closed or minimized.
+              </p>
+              {notificationPermission === "denied" && (
+                <p className="text-sm text-destructive">
+                  Notifications are blocked. Enable them in your browser settings to continue.
+                </p>
+              )}
+              {notificationError && (
+                <p className="text-sm text-destructive">{notificationError}</p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              disabled={
+                notificationLoading ||
+                notificationPermission === "denied" ||
+                !selectedCompanyId
+              }
+              onClick={handleNotificationToggle}
+            >
+              {notificationLoading ? (
+                <>
+                  {isSubscribed ? "Disabling..." : "Enabling..."}
+                </>
+              ) : isSubscribed ? (
+                "Disable Notifications"
+              ) : (
+                "Enable Notifications"
+              )}
+            </Button>
+            {isSubscribed && (
+              <div className="flex items-center gap-2 text-xs text-green-600">
+                <Check className="h-4 w-4" />
+                Push notifications enabled
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Danger Zone */}
       <div className="space-y-4">
