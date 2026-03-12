@@ -1,9 +1,14 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
-import { approvalComments, approvals } from "@paperclipai/db";
+import { approvalComments, approvals, agents } from "@paperclipai/db";
 import { notFound, unprocessable } from "../errors.js";
 import { agentService } from "./agents.js";
 import { notifyHireApproved } from "./hire-hook.js";
+import {
+  defaultAutoApprovalConfig,
+  getAutoApprovalDecision,
+  type ApprovalCheckContext,
+} from "./auto-approval.js";
 
 export function approvalService(db: Db) {
   const agentsSvc = agentService(db);
@@ -80,12 +85,57 @@ export function approvalService(db: Db) {
         .where(eq(approvals.id, id))
         .then((rows) => rows[0] ?? null),
 
-    create: (companyId: string, data: Omit<typeof approvals.$inferInsert, "companyId">) =>
-      db
+    create: async (
+      companyId: string,
+      data: Omit<typeof approvals.$inferInsert, "companyId">,
+      opts?: {
+        skipAutoApproval?: boolean;
+      }
+    ) => {
+      const autoApprovalConfig = defaultAutoApprovalConfig();
+      let finalData = { ...data };
+
+      // Check if this approval should be auto-approved
+      if (!opts?.skipAutoApproval && data.requestedByAgentId) {
+        const agent = await db
+          .select()
+          .from(agents)
+          .where(eq(agents.id, data.requestedByAgentId))
+          .then((rows) => rows[0] ?? null);
+
+        const context: ApprovalCheckContext = {
+          agent,
+          companyId,
+          isAuthenticated: !!agent && agent.companyId === companyId,
+        };
+
+        const decision = getAutoApprovalDecision(
+          {
+            type: data.type,
+            payload: data.payload as Record<string, unknown>,
+            requestedByAgentId: data.requestedByAgentId,
+          },
+          context,
+          autoApprovalConfig
+        );
+
+        if (decision.shouldAutoApprove) {
+          finalData = {
+            ...finalData,
+            status: decision.decision || "approved",
+            decidedByUserId: decision.decidedByUserId || null,
+            decisionNote: decision.decisionNote || null,
+            decidedAt: new Date(),
+          };
+        }
+      }
+
+      return db
         .insert(approvals)
-        .values({ ...data, companyId })
+        .values({ ...finalData, companyId })
         .returning()
-        .then((rows) => rows[0]),
+        .then((rows) => rows[0]);
+    },
 
     approve: async (id: string, decidedByUserId: string, decisionNote?: string | null) => {
       const { approval: updated, applied } = await resolveApproval(
