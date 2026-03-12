@@ -3,6 +3,7 @@ import {
   execute as claudeExecute,
   testEnvironment as claudeTestEnvironment,
   sessionCodec as claudeSessionCodec,
+  listClaudeModels,
 } from "@paperclipai/adapter-claude-local/server";
 import { agentConfigurationDoc as claudeAgentConfigurationDoc, models as claudeModels } from "@paperclipai/adapter-claude-local";
 import {
@@ -67,6 +68,7 @@ const claudeLocalAdapter: ServerAdapterModule = {
   testEnvironment: claudeTestEnvironment,
   sessionCodec: claudeSessionCodec,
   models: claudeModels,
+  listModels: listClaudeModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: claudeAgentConfigurationDoc,
 };
