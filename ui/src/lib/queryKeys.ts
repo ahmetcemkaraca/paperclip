@@ -48,6 +48,11 @@ export const queryKeys = {
     comments: (approvalId: string) => ["approvals", "comments", approvalId] as const,
     issues: (approvalId: string) => ["approvals", "issues", approvalId] as const,
   },
+  discussions: {
+    list: (companyId: string) => ["discussions", companyId] as const,
+    detail: (discussionId: string) => ["discussions", "detail", discussionId] as const,
+    comments: (discussionId: string) => ["discussions", "comments", discussionId] as const,
+  },
   access: {
     joinRequests: (companyId: string, status: string = "pending_approval") =>
       ["access", "join-requests", companyId, status] as const,

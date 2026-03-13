@@ -8,6 +8,7 @@ export { projectsApi } from "./projects";
 export { issuesApi } from "./issues";
 export { goalsApi } from "./goals";
 export { approvalsApi } from "./approvals";
+export { discussionsApi } from "./discussions";
 export { costsApi } from "./costs";
 export { activityApi } from "./activity";
 export { dashboardApi } from "./dashboard";
