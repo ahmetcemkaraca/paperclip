@@ -32,7 +32,7 @@ function getRecentIssues(issues: Issue[]): Issue[] {
 }
 
 export function Dashboard() {
-  const { selectedCompanyId, companies } = useCompany();
+  const { selectedCompanyId, companies, selectedCompany } = useCompany();
   const { openOnboarding } = useDialog();
   const { setBreadcrumbs } = useBreadcrumbs();
   const [animatedActivityIds, setAnimatedActivityIds] = useState<Set<string>>(new Set());
@@ -316,7 +316,7 @@ export function Dashboard() {
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                   Recent Discussions
                 </h3>
-                <Link to="/discussions" className="text-xs text-muted-foreground hover:text-foreground">
+                <Link to={`/${selectedCompany?.issuePrefix}/discussions`} className="text-xs text-muted-foreground hover:text-foreground">
                   View all
                 </Link>
               </div>
@@ -329,7 +329,7 @@ export function Dashboard() {
                   {recentDiscussions.map((discussion) => (
                     <Link
                       key={discussion.id}
-                      to={`/discussions/${discussion.id}`}
+                      to={`/${selectedCompany?.issuePrefix}/discussions/${discussion.id}`}
                       className="px-4 py-3 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
                     >
                       <div className="flex items-start gap-2">

@@ -256,6 +256,12 @@ export {
   extractProjectMentionIds,
   type ParsedProjectMention,
 } from "./project-mentions.js";
+export {
+  ISSUE_MENTION_PATTERN,
+  parseIssueMention,
+  extractIssueMentions,
+  type ParsedIssueMention,
+} from "./issue-mentions.js";
 
 export {
   paperclipConfigSchema,

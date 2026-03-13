@@ -1,9 +1,10 @@
 import { isValidElement, useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { parseProjectMentionHref } from "@paperclipai/shared";
+import { parseProjectMentionHref, parseIssueMention } from "@paperclipai/shared";
 import { cn } from "../lib/utils";
 import { useTheme } from "../context/ThemeContext";
+import { useCompany } from "../context/CompanyContext";
 
 interface MarkdownBodyProps {
   children: string;
@@ -114,6 +115,8 @@ function MermaidDiagramBlock({ source, darkMode }: { source: string; darkMode: b
 
 export function MarkdownBody({ children, className }: MarkdownBodyProps) {
   const { theme } = useTheme();
+  const { selectedCompany } = useCompany();
+  
   return (
     <div
       className={cn(
@@ -133,21 +136,37 @@ export function MarkdownBody({ children, className }: MarkdownBodyProps) {
             return <pre {...preProps}>{preChildren}</pre>;
           },
           a: ({ href, children: linkChildren }) => {
-            const parsed = href ? parseProjectMentionHref(href) : null;
-            if (parsed) {
+            // Check for project mention
+            const parsedProject = href ? parseProjectMentionHref(href) : null;
+            if (parsedProject) {
               const label = linkChildren;
               return (
                 <a
-                  href={`/projects/${parsed.projectId}`}
+                  href={`/${selectedCompany?.issuePrefix}/projects/${parsedProject.projectId}`}
                   className="paperclip-project-mention-chip"
-                  style={mentionChipStyle(parsed.color)}
+                  style={mentionChipStyle(parsedProject.color)}
                 >
                   {label}
                 </a>
               );
             }
+            
+            // Check for issue mention (#ACK-123)
+            const linkText = typeof linkChildren === "string" ? linkChildren : "";
+            const parsedIssue = parseIssueMention(linkText);
+            if (parsedIssue && href === `#${parsedIssue.issueIdentifier}`) {
+              return (
+                <a
+                  href={`/${selectedCompany?.issuePrefix}/issues/${parsedIssue.issueIdentifier}`}
+                  className="font-mono text-sm font-medium text-primary hover:underline"
+                >
+                  #{parsedIssue.issueIdentifier}
+                </a>
+              );
+            }
+            
             return (
-              <a href={href} rel="noreferrer">
+              <a href={href} rel="noreferrer" target="_blank">
                 {linkChildren}
               </a>
             );
