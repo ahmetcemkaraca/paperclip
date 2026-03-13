@@ -9,6 +9,7 @@ import {
   createIssueSchema,
   linkIssueApprovalSchema,
   updateIssueSchema,
+  isUuidLike,
 } from "@paperclipai/shared";
 import type { StorageService } from "../storage/types.js";
 import { validate } from "../middleware/validate.js";
@@ -147,13 +148,25 @@ export function issueRoutes(db: Db, storage: StorageService) {
   }
 
   async function normalizeIssueIdentifier(rawId: string): Promise<string> {
-    if (/^[A-Z]+-\d+$/i.test(rawId)) {
-      const issue = await svc.getByIdentifier(rawId);
+    const trimmed = rawId.trim();
+    
+    // Check if it's a valid UUID
+    if (isUuidLike(trimmed)) {
+      return trimmed;
+    }
+    
+    // Check if it's an issue identifier (e.g., "PAP-39")
+    if (/^[A-Z]+-\d+$/i.test(trimmed)) {
+      const issue = await svc.getByIdentifier(trimmed);
       if (issue) {
         return issue.id;
       }
+      // Identifier not found - return it anyway, will result in 404
+      return trimmed;
     }
-    return rawId;
+    
+    // Neither UUID nor identifier - throw error for invalid format
+    throw new HttpError(400, `Invalid issue ID or identifier: "${trimmed}". Expected a UUID or identifier like "PAP-39"`);
   }
 
   // Resolve issue identifiers (e.g. "PAP-39") to UUIDs for all /issues/:id routes

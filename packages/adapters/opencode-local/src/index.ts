@@ -1,7 +1,19 @@
 export const type = "opencode_local";
 export const label = "OpenCode (local)";
 
-export const models: Array<{ id: string; label: string }> = [];
+export const models: Array<{ id: string; label: string }> = [
+  { id: "anthropic/claude-sonnet-4-6", label: "anthropic/claude-sonnet-4-6" },
+  { id: "anthropic/claude-opus-4-6", label: "anthropic/claude-opus-4-6" },
+  { id: "openai/gpt-5.4", label: "openai/gpt-5.4" },
+  { id: "openai/gpt-5.3-codex", label: "openai/gpt-5.3-codex" },
+  { id: "openai/gpt-5.2-codex", label: "openai/gpt-5.2-codex" },
+  { id: "openai/o3", label: "openai/o3" },
+  { id: "openai/o4-mini", label: "openai/o4-mini" },
+  { id: "opencode/claude-sonnet-4-5", label: "opencode/claude-sonnet-4-5" },
+  { id: "opencode/claude-opus-4-1", label: "opencode/claude-opus-4-1" },
+  { id: "opencode/gemini-3-pro", label: "opencode/gemini-3-pro" },
+  { id: "opencode/gemini-3-flash", label: "opencode/gemini-3-flash" },
+];
 
 export const agentConfigurationDoc = `# opencode_local agent configuration
 
@@ -37,4 +49,5 @@ Notes:
 - Paperclip requires an explicit \`model\` value for \`opencode_local\` agents.
 - Runs are executed with: opencode run --format json ...
 - Sessions are resumed with --session when stored session cwd matches current cwd.
+- Paperclip computes \`costUsd\` from OpenCode's emitted cost when available, or falls back to published per-token pricing for known provider/model combinations.
 `;

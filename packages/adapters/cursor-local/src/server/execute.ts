@@ -3,7 +3,7 @@ import type { Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import { estimateUsageCostUsd, type AdapterExecutionContext, type AdapterExecutionResult } from "@paperclipai/adapter-utils";
 import {
   asString,
   asNumber,
@@ -456,7 +456,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       provider: providerFromModel,
       model,
       billingType,
-      costUsd: attempt.parsed.costUsd,
+      costUsd:
+        attempt.parsed.costUsd ??
+        (billingType === "api"
+          ? estimateUsageCostUsd({
+              model,
+              usage: attempt.parsed.usage,
+            })
+          : null),
       resultJson: {
         stdout: attempt.proc.stdout,
         stderr: attempt.proc.stderr,

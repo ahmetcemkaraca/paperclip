@@ -81,7 +81,7 @@ export function parseOpenCodeJsonl(stdout: string) {
     sessionId,
     summary: messages.join("\n\n").trim(),
     usage,
-    costUsd,
+    costUsd: costUsd > 0 ? costUsd : null,
     errorMessage: errors.length > 0 ? errors.join("\n") : null,
   };
 }

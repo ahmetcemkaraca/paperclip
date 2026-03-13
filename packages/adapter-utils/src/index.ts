@@ -22,3 +22,7 @@ export type {
   CLIAdapterModule,
   CreateConfigValues,
 } from "./types.js";
+export {
+  findKnownModelPricing,
+  estimateUsageCostUsd,
+} from "./pricing.js";

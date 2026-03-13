@@ -8,7 +8,7 @@ describe("codex_local parser", () => {
     const stdout = [
       JSON.stringify({ type: "thread.started", thread_id: "thread-123" }),
       JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "hello" } }),
-      JSON.stringify({ type: "turn.completed", usage: { input_tokens: 10, cached_input_tokens: 2, output_tokens: 4 } }),
+      JSON.stringify({ type: "turn.completed", usage: { input_tokens: 10, cached_input_tokens: 2, output_tokens: 4 }, total_cost_usd: 0.000045 }),
       JSON.stringify({ type: "turn.failed", error: { message: "model access denied" } }),
     ].join("\n");
 
@@ -20,6 +20,7 @@ describe("codex_local parser", () => {
       cachedInputTokens: 2,
       outputTokens: 4,
     });
+    expect(parsed.costUsd).toBeCloseTo(0.000045, 8);
     expect(parsed.errorMessage).toBe("model access denied");
   });
 });

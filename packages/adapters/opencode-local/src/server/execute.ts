@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import { estimateUsageCostUsd, type AdapterExecutionContext, type AdapterExecutionResult } from "@paperclipai/adapter-utils";
 import {
   asString,
   asNumber,
@@ -39,6 +39,35 @@ function parseModelProvider(model: string | null): string | null {
   const trimmed = model.trim();
   if (!trimmed.includes("/")) return null;
   return trimmed.slice(0, trimmed.indexOf("/")).trim() || null;
+}
+
+function hasNonEmptyEnvValue(env: Record<string, string>, key: string): boolean {
+  const raw = env[key];
+  return typeof raw === "string" && raw.trim().length > 0;
+}
+
+function resolveOpenCodeBillingType(model: string | null, env: Record<string, string>): "api" | "subscription" | "unknown" {
+  const provider = parseModelProvider(model)?.toLowerCase() ?? "";
+  if (!provider) return "unknown";
+
+  if (provider === "anthropic") {
+    return hasNonEmptyEnvValue(env, "ANTHROPIC_API_KEY") ? "api" : "subscription";
+  }
+
+  if (
+    provider === "openai" ||
+    provider === "google" ||
+    provider === "gemini" ||
+    provider === "xai" ||
+    provider === "grok" ||
+    provider === "mistral" ||
+    provider === "openrouter" ||
+    provider === "opencode"
+  ) {
+    return "api";
+  }
+
+  return "unknown";
 }
 
 function claudeSkillsHome(): string {
@@ -158,6 +187,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   if (!hasExplicitApiKey && authToken) {
     env.PAPERCLIP_API_KEY = authToken;
   }
+  const billingType = resolveOpenCodeBillingType(model || null, env);
   const runtimeEnv = Object.fromEntries(
     Object.entries(ensurePathInEnv({ ...process.env, ...env })).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
@@ -339,8 +369,15 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       sessionDisplayId: resolvedSessionId,
       provider: parseModelProvider(modelId),
       model: modelId,
-      billingType: "unknown",
-      costUsd: attempt.parsed.costUsd,
+      billingType,
+      costUsd:
+        attempt.parsed.costUsd ??
+        (billingType === "api"
+          ? estimateUsageCostUsd({
+              model: modelId,
+              usage: attempt.parsed.usage,
+            })
+          : null),
       resultJson: {
         stdout: attempt.proc.stdout,
         stderr: attempt.proc.stderr,

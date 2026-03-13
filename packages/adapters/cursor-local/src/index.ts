@@ -15,6 +15,7 @@ const CURSOR_FALLBACK_MODEL_IDS = [
   "gpt-5.3-codex-xhigh",
   "gpt-5.3-codex-xhigh-fast",
   "gpt-5.3-codex-spark-preview",
+  "gpt-5.4",
   "gpt-5.2",
   "gpt-5.2-codex-low",
   "gpt-5.2-codex-low-fast",
@@ -80,4 +81,5 @@ Notes:
 - Sessions are resumed with --resume when stored session cwd matches current cwd.
 - Paperclip auto-injects local skills into "~/.cursor/skills" when missing, so Cursor can discover "$paperclip" and related skills on local runs.
 - Paperclip auto-adds --yolo unless one of --trust/--yolo/-f is already present in extraArgs.
+- Paperclip computes \`costUsd\` from Cursor's emitted cost when available, or falls back to published per-token model pricing for known API-priced models. Cursor-only plans like \`auto\` may still use vendor-specific billing.
 `;
