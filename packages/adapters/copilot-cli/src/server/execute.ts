@@ -16,7 +16,7 @@ import {
   renderTemplate,
   runChildProcess,
 } from "@paperclipai/adapter-utils/server-utils";
-import { parseCopilotOutput } from "./parse.js";
+import { parseCopilotOutput, detectCopilotAuthRequired } from "./parse.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const PAPERCLIP_SKILLS_CANDIDATES = [
@@ -48,13 +48,46 @@ function copilotInstructionsHome(): string {
   return path.join(os.homedir(), ".github-copilot", "skills");
 }
 
+function renderPaperclipEnvNote(env: Record<string, string>): string {
+  const paperclipKeys = Object.keys(env)
+    .filter((key) => key.startsWith("PAPERCLIP_"))
+    .sort();
+  if (paperclipKeys.length === 0) return "";
+  return [
+    "Paperclip runtime note:",
+    `The following PAPERCLIP_* environment variables are available in this run: ${paperclipKeys.join(", ")}`,
+    "Do not assume these variables are missing without checking your shell environment.",
+    "",
+    "",
+  ].join("\n");
+}
+
 async function ensureCopilotSkillsInjected(onLog: AdapterExecutionContext["onLog"]) {
   const skillsDir = await resolvePaperclipSkillsDir();
   if (!skillsDir) return;
 
   const skillsHome = copilotInstructionsHome();
-  await fs.mkdir(skillsHome, { recursive: true });
-  const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+  try {
+    await fs.mkdir(skillsHome, { recursive: true });
+  } catch (err) {
+    await onLog(
+      "stderr",
+      `[paperclip] Failed to prepare Copilot skills directory ${skillsHome}: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    return;
+  }
+
+  let entries: import("node:fs").Dirent[];
+  try {
+    entries = await fs.readdir(skillsDir, { withFileTypes: true });
+  } catch (err) {
+    await onLog(
+      "stderr",
+      `[paperclip] Failed to read Paperclip skills from ${skillsDir}: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    return;
+  }
+
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const source = path.join(skillsDir, entry.name);
@@ -201,16 +234,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     }
   }
   const commandNotes = (() => {
-    if (!instructionsFilePath) return [] as string[];
+    const notes: string[] = ["Prompt is sent to gh copilot via stdin."];
+    if (!instructionsFilePath) return notes;
     if (instructionsPrefix.length > 0) {
-      return [
+      notes.push(
         `Loaded agent instructions from ${instructionsFilePath}`,
         `Prepended instructions + path directive to stdin prompt (relative references from ${instructionsDir}).`,
-      ];
+      );
+      return notes;
     }
-    return [
+    notes.push(
       `Configured instructionsFilePath ${instructionsFilePath}, but file could not be read; continuing without injected instructions.`,
-    ];
+    );
+    return notes;
   })();
 
   const renderedPrompt = renderTemplate(promptTemplate, {
@@ -222,10 +258,22 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     run: { id: runId, source: "on_demand" },
     context,
   });
-  const prompt = `${instructionsPrefix}${renderedPrompt}`;
+  const paperclipEnvNote = renderPaperclipEnvNote(env);
+  const prompt = `${instructionsPrefix}${paperclipEnvNote}${renderedPrompt}`;
 
   const runtimeSessionParams = parseObject(runtime.sessionParams);
   const runtimeSessionId = asString(runtimeSessionParams.sessionId, runtime.sessionId ?? "");
+  const runtimeSessionCwd = asString(runtimeSessionParams.cwd, "");
+  const canReuseSession =
+    runtimeSessionId.length === 0 ||
+    runtimeSessionCwd.length === 0 ||
+    path.resolve(runtimeSessionCwd) === path.resolve(cwd);
+  if (runtimeSessionId && !canReuseSession) {
+    await onLog(
+      "stderr",
+      `[paperclip] Copilot session "${runtimeSessionId}" was saved for cwd "${runtimeSessionCwd}" and may not apply in "${cwd}".\n`,
+    );
+  }
 
   const args = ["copilot"];
   if (model) args.push("--model", model);
@@ -253,16 +301,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     onLog,
   });
 
+  const parsed = parseCopilotOutput(proc.stdout);
+  const requiresAuth = detectCopilotAuthRequired(proc.stdout, proc.stderr);
+
   if (proc.timedOut) {
     return {
       exitCode: proc.exitCode,
       signal: proc.signal,
       timedOut: true,
       errorMessage: `Timed out after ${timeoutSec}s`,
+      errorCode: requiresAuth ? "copilot_auth_required" : null,
     };
   }
 
-  const parsed = parseCopilotOutput(proc.stdout);
   const stderrLine = firstNonEmptyLine(proc.stderr);
   const fallbackErrorMessage =
     parsed.errorMessage ||
@@ -278,12 +329,17 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         ...(workspaceRepoRef ? { repoRef: workspaceRepoRef } : {}),
       } as Record<string, unknown>)
     : null;
+  const failed = (proc.exitCode ?? 0) !== 0;
+  // Clear the stored session when a run fails and produced no fresh session ID.
+  // This avoids endlessly re-attaching a stale thread ID on subsequent heartbeats.
+  const clearSession = failed && !parsed.sessionId;
 
   return {
     exitCode: proc.exitCode,
     signal: proc.signal,
     timedOut: false,
-    errorMessage: (proc.exitCode ?? 0) === 0 ? null : fallbackErrorMessage,
+    errorMessage: failed ? fallbackErrorMessage : null,
+    errorCode: failed && requiresAuth ? "copilot_auth_required" : null,
     usage: parsed.usage,
     sessionId: resolvedSessionId,
     sessionParams: resolvedSessionParams,
@@ -297,5 +353,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       stderr: proc.stderr,
     },
     summary: parsed.summary,
+    clearSession,
   };
 }

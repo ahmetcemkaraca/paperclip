@@ -1,5 +1,17 @@
 import { asString, parseJson } from "@paperclipai/adapter-utils/server-utils";
 
+const COPILOT_AUTH_REQUIRED_RE =
+  /not\s+(?:authenticated|logged\s+in)|please\s+(?:authenticate|log\s+in)|gh\s+auth\s+login|github_token\s+(?:required|missing|invalid)|authentication\s+(?:required|failed)|unauthorized|invalid\s+credentials|401/i;
+
+export function detectCopilotAuthRequired(stdout: string, stderr: string): boolean {
+  const haystack = `${stdout}\n${stderr}`
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+  return COPILOT_AUTH_REQUIRED_RE.test(haystack);
+}
+
 export function parseCopilotOutput(stdout: string) {
   let sessionId: string | null = null;
   const messages: string[] = [];

@@ -24,10 +24,12 @@ import {
   DEFAULT_CODEX_LOCAL_MODEL,
 } from "@paperclipai/adapter-codex-local";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
+import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
 
 const SUPPORTED_ADVANCED_ADAPTER_TYPES = new Set<CreateConfigValues["adapterType"]>([
   "claude_local",
   "codex_local",
+  "gemini_local",
   "opencode_local",
   "pi_local",
   "cursor",
@@ -43,6 +45,8 @@ function createValuesForAdapterType(
     nextValues.model = DEFAULT_CODEX_LOCAL_MODEL;
     nextValues.dangerouslyBypassSandbox =
       DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX;
+  } else if (adapterType === "gemini_local") {
+    nextValues.model = DEFAULT_GEMINI_LOCAL_MODEL;
   } else if (adapterType === "cursor") {
     nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
   } else if (adapterType === "opencode_local") {
@@ -67,6 +71,9 @@ export function NewAgent() {
   const [roleOpen, setRoleOpen] = useState(false);
   const [reportsToOpen, setReportsToOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [pendingClaudeModelInit, setPendingClaudeModelInit] = useState(
+    defaultCreateValues.adapterType === "claude_local",
+  );
 
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -115,6 +122,30 @@ export function NewAgent() {
       return createValuesForAdapterType(requested as CreateConfigValues["adapterType"]);
     });
   }, [presetAdapterType]);
+
+  useEffect(() => {
+    if (configValues.adapterType === "claude_local") {
+      setPendingClaudeModelInit(!configValues.model.trim());
+      return;
+    }
+    setPendingClaudeModelInit(false);
+  }, [configValues.adapterType]);
+
+  useEffect(() => {
+    if (!pendingClaudeModelInit) return;
+    if (configValues.adapterType !== "claude_local") return;
+    if (configValues.model.trim()) {
+      setPendingClaudeModelInit(false);
+      return;
+    }
+    const nextModel = adapterModels?.[0]?.id?.trim() ?? "";
+    if (!nextModel) return;
+    setConfigValues((prev) => {
+      if (prev.adapterType !== "claude_local" || prev.model.trim()) return prev;
+      return { ...prev, model: nextModel };
+    });
+    setPendingClaudeModelInit(false);
+  }, [adapterModels, configValues.adapterType, configValues.model, pendingClaudeModelInit]);
 
   const createAgent = useMutation({
     mutationFn: (data: Record<string, unknown>) =>

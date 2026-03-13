@@ -25,6 +25,7 @@ import {
   DEFAULT_CODEX_LOCAL_MODEL
 } from "@paperclipai/adapter-codex-local";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
+import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
 import { AsciiArtAnimation } from "./AsciiArtAnimation";
 import { ChoosePathButton } from "./PathInstructionsModal";
 import { HintIcon } from "./agent-config-primitives";
@@ -33,6 +34,7 @@ import {
   Building2,
   Bot,
   Code,
+  Gem,
   ListTodo,
   Rocket,
   ArrowLeft,
@@ -51,6 +53,7 @@ type Step = 1 | 2 | 3 | 4;
 type AdapterType =
   | "claude_local"
   | "codex_local"
+  | "gemini_local"
   | "opencode_local"
   | "pi_local"
   | "cursor"
@@ -99,6 +102,7 @@ export function OnboardingWizard() {
   const [forceUnsetAnthropicApiKey, setForceUnsetAnthropicApiKey] =
     useState(false);
   const [unsetAnthropicLoading, setUnsetAnthropicLoading] = useState(false);
+  const [pendingClaudeModelInit, setPendingClaudeModelInit] = useState(true);
 
   // Step 3
   const [taskTitle, setTaskTitle] = useState("Create your CEO HEARTBEAT.md");
@@ -166,11 +170,19 @@ export function OnboardingWizard() {
     enabled: Boolean(createdCompanyId) && onboardingOpen && step === 2
   });
   const isLocalAdapter =
-    adapterType === "claude_local" || adapterType === "codex_local" || adapterType === "opencode_local" || adapterType === "pi_local" || adapterType === "cursor" || adapterType === "copilot_cli";
+    adapterType === "claude_local" ||
+    adapterType === "codex_local" ||
+    adapterType === "gemini_local" ||
+    adapterType === "opencode_local" ||
+    adapterType === "pi_local" ||
+    adapterType === "cursor" ||
+    adapterType === "copilot_cli";
   const effectiveAdapterCommand =
     command.trim() ||
     (adapterType === "codex_local"
       ? "codex"
+      : adapterType === "gemini_local"
+        ? "gemini"
       : adapterType === "cursor"
         ? "agent"
         : adapterType === "opencode_local"
@@ -231,6 +243,27 @@ export function OnboardingWizard() {
       }));
   }, [filteredModels, adapterType]);
 
+  useEffect(() => {
+    if (adapterType === "claude_local") {
+      setPendingClaudeModelInit(!model.trim());
+      return;
+    }
+    setPendingClaudeModelInit(false);
+  }, [adapterType]);
+
+  useEffect(() => {
+    if (!pendingClaudeModelInit) return;
+    if (adapterType !== "claude_local") return;
+    if (model.trim()) {
+      setPendingClaudeModelInit(false);
+      return;
+    }
+    const nextModel = adapterModels?.[0]?.id?.trim() ?? "";
+    if (!nextModel) return;
+    setModel(nextModel);
+    setPendingClaudeModelInit(false);
+  }, [adapterModels, adapterType, model, pendingClaudeModelInit]);
+
   function reset() {
     setStep(1);
     setLoading(false);
@@ -271,6 +304,8 @@ export function OnboardingWizard() {
       model:
         adapterType === "codex_local"
           ? model || DEFAULT_CODEX_LOCAL_MODEL
+          : adapterType === "gemini_local"
+            ? model || DEFAULT_GEMINI_LOCAL_MODEL
           : adapterType === "cursor"
             ? model || DEFAULT_CURSOR_LOCAL_MODEL
           : model,
@@ -659,6 +694,12 @@ export function OnboardingWizard() {
                           recommended: true
                         },
                         {
+                          value: "gemini_local" as const,
+                          label: "Gemini CLI",
+                          icon: Gem,
+                          desc: "Local Gemini agent"
+                        },
+                        {
                           value: "opencode_local" as const,
                           label: "OpenCode",
                           icon: OpenCodeLogoIcon,
@@ -708,6 +749,8 @@ export function OnboardingWizard() {
                             setAdapterType(nextType);
                             if (nextType === "codex_local" && !model) {
                               setModel(DEFAULT_CODEX_LOCAL_MODEL);
+                            } else if (nextType === "gemini_local" && !model) {
+                              setModel(DEFAULT_GEMINI_LOCAL_MODEL);
                             } else if (nextType === "cursor" && !model) {
                               setModel(DEFAULT_CURSOR_LOCAL_MODEL);
                             }
@@ -716,6 +759,9 @@ export function OnboardingWizard() {
                                 setModel("");
                               }
                               return;
+                            }
+                            if (nextType === "claude_local") {
+                              setPendingClaudeModelInit(true);
                             }
                             setModel("");
                           }}
@@ -741,6 +787,7 @@ export function OnboardingWizard() {
                   {/* Conditional adapter fields */}
                   {(adapterType === "claude_local" ||
                     adapterType === "codex_local" ||
+                    adapterType === "gemini_local" ||
                     adapterType === "opencode_local" ||
                     adapterType === "pi_local" ||
                     adapterType === "cursor" ||
@@ -914,6 +961,8 @@ export function OnboardingWizard() {
                             ? `${effectiveAdapterCommand} -p --mode ask --output-format json \"Respond with hello.\"`
                             : adapterType === "codex_local"
                             ? `${effectiveAdapterCommand} exec --json -`
+                            : adapterType === "gemini_local"
+                              ? `${effectiveAdapterCommand} --output-format json \"Respond with hello.\"`
                             : adapterType === "opencode_local"
                               ? `${effectiveAdapterCommand} run --format json "Respond with hello."`
                             : adapterType === "copilot_cli"
@@ -924,15 +973,17 @@ export function OnboardingWizard() {
                           Prompt:{" "}
                           <span className="font-mono">Respond with hello.</span>
                         </p>
-                        {adapterType === "cursor" || adapterType === "codex_local" || adapterType === "opencode_local" || adapterType === "copilot_cli" ? (
+                        {adapterType === "cursor" || adapterType === "codex_local" || adapterType === "gemini_local" || adapterType === "opencode_local" || adapterType === "copilot_cli" ? (
                           <p className="text-muted-foreground">
                             If auth fails, set{" "}
                             <span className="font-mono">
                               {adapterType === "cursor"
                                 ? "CURSOR_API_KEY"
-                                : adapterType === "copilot_cli"
-                                  ? "GITHUB_TOKEN"
-                                  : "OPENAI_API_KEY"}
+                                : adapterType === "gemini_local"
+                                  ? "GEMINI_API_KEY"
+                                  : adapterType === "copilot_cli"
+                                    ? "GITHUB_TOKEN"
+                                    : "OPENAI_API_KEY"}
                             </span>{" "}
                             in
                             env or run{" "}
@@ -941,9 +992,11 @@ export function OnboardingWizard() {
                                 ? "agent login"
                                 : adapterType === "codex_local"
                                   ? "codex login"
-                                  : adapterType === "copilot_cli"
-                                    ? "gh auth login"
-                                    : "opencode auth login"}
+                                  : adapterType === "gemini_local"
+                                    ? "gemini auth"
+                                    : adapterType === "copilot_cli"
+                                      ? "gh auth login"
+                                      : "opencode auth login"}
                             </span>.
                           </p>
                         ) : (

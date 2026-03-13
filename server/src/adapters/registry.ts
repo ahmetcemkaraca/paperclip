@@ -3,6 +3,7 @@ import {
   execute as claudeExecute,
   testEnvironment as claudeTestEnvironment,
   sessionCodec as claudeSessionCodec,
+  listClaudeModels,
 } from "@paperclipai/adapter-claude-local/server";
 import { agentConfigurationDoc as claudeAgentConfigurationDoc, models as claudeModels } from "@paperclipai/adapter-claude-local";
 import {
@@ -17,6 +18,12 @@ import {
   sessionCodec as cursorSessionCodec,
 } from "@paperclipai/adapter-cursor-local/server";
 import { agentConfigurationDoc as cursorAgentConfigurationDoc, models as cursorModels } from "@paperclipai/adapter-cursor-local";
+import {
+  execute as geminiExecute,
+  testEnvironment as geminiTestEnvironment,
+  sessionCodec as geminiSessionCodec,
+} from "@paperclipai/adapter-gemini-local/server";
+import { agentConfigurationDoc as geminiAgentConfigurationDoc, models as geminiModels } from "@paperclipai/adapter-gemini-local";
 import {
   execute as openCodeExecute,
   testEnvironment as openCodeTestEnvironment,
@@ -54,6 +61,7 @@ const claudeLocalAdapter: ServerAdapterModule = {
   testEnvironment: claudeTestEnvironment,
   sessionCodec: claudeSessionCodec,
   models: claudeModels,
+  listModels: listClaudeModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: claudeAgentConfigurationDoc,
 };
@@ -78,6 +86,16 @@ const cursorLocalAdapter: ServerAdapterModule = {
   listModels: listCursorModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: cursorAgentConfigurationDoc,
+};
+
+const geminiLocalAdapter: ServerAdapterModule = {
+  type: "gemini_local",
+  execute: geminiExecute,
+  testEnvironment: geminiTestEnvironment,
+  sessionCodec: geminiSessionCodec,
+  models: geminiModels,
+  supportsLocalAgentJwt: true,
+  agentConfigurationDoc: geminiAgentConfigurationDoc,
 };
 
 const openclawGatewayAdapter: ServerAdapterModule = {
@@ -125,6 +143,7 @@ const adaptersByType = new Map<string, ServerAdapterModule>(
     openCodeLocalAdapter,
     piLocalAdapter,
     cursorLocalAdapter,
+    geminiLocalAdapter,
     openclawGatewayAdapter,
     processAdapter,
     httpAdapter,
