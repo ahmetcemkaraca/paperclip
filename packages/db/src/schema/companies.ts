@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, boolean, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 
 export const companies = pgTable(
   "companies",
@@ -16,6 +16,15 @@ export const companies = pgTable(
       .default(true),
     maxConcurrentAgents: integer("max_concurrent_agents").notNull().default(1),
     brandColor: text("brand_color"),
+    fallbackConfig: jsonb("fallback_config")
+      .$type<{
+        enabled?: boolean;
+        adapterId?: string;
+        adapterType?: string;
+        modelId?: string;
+        rateLimitKeywords?: string[];
+      }>()
+      .default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

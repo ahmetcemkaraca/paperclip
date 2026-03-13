@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { COMPANY_STATUSES } from "../constants.js";
+import { fallbackConfigSchema } from "./fallback.js";
 
 export const createCompanySchema = z.object({
   name: z.string().min(1),
@@ -17,6 +18,7 @@ export const updateCompanySchema = createCompanySchema
     requireBoardApprovalForNewAgents: z.boolean().optional(),
     maxConcurrentAgents: z.number().int().min(1).max(100).optional(),
     brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+    fallbackConfig: fallbackConfigSchema.optional(),
   });
 
 export type UpdateCompany = z.infer<typeof updateCompanySchema>;

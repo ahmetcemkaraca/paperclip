@@ -16,6 +16,7 @@ import {
   wakeAgentSchema,
   updateAgentSchema,
   batchUpdateAgentsSchema,
+  fallbackConfigSchema,
 } from "@paperclipai/shared";
 import { validate } from "../middleware/validate.js";
 import {
@@ -1568,6 +1569,46 @@ export function agentRoutes(db: Db) {
       agentName: agent.name,
       adapterType: agent.adapterType,
     });
+  });
+
+  // Fallback configuration routes for agents
+  router.get("/:agentId/fallback-config", async (req, res) => {
+    const agentId = req.params.agentId as string;
+    const agent = await svc.getById(agentId);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanReadConfigurations(req, agent.companyId);
+    res.json(agent.fallbackConfig || {});
+  });
+
+  router.put("/:agentId/fallback-config", validate(fallbackConfigSchema), async (req, res) => {
+    const agentId = req.params.agentId as string;
+    const agent = await svc.getById(agentId);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanUpdateAgent(req, agent);
+    const updated = await svc.update(agentId, { fallbackConfig: req.body });
+    if (!updated) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      action: "agent.fallback_config_updated",
+      entityType: "agent",
+      entityId: agentId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      details: req.body,
+    });
+    res.json(updated.fallbackConfig || {});
   });
 
   return router;

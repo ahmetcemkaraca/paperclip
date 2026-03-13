@@ -25,6 +25,15 @@ export const agents = pgTable(
     adapterType: text("adapter_type").notNull().default("process"),
     adapterConfig: jsonb("adapter_config").$type<Record<string, unknown>>().notNull().default({}),
     runtimeConfig: jsonb("runtime_config").$type<Record<string, unknown>>().notNull().default({}),
+    fallbackConfig: jsonb("fallback_config")
+      .$type<{
+        enabled?: boolean;
+        adapterId?: string;
+        adapterType?: string;
+        modelId?: string;
+        rateLimitKeywords?: string[];
+      }>()
+      .default({}),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
     spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),
     permissions: jsonb("permissions").$type<Record<string, unknown>>().notNull().default({}),

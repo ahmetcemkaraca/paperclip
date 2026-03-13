@@ -40,6 +40,12 @@ import {
   parseProjectExecutionWorkspacePolicy,
   resolveExecutionWorkspaceMode,
 } from "./execution-workspace-policy.js";
+import {
+  detectRateLimitInResult,
+  resolveFallbackConfig,
+  type FallbackDetectionResult,
+} from "./fallback.js";
+import { logActivity } from "./activity-log.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;

@@ -128,6 +128,8 @@ export type {
   AgentEnvConfig,
   CompanySecret,
   SecretProviderDescriptor,
+  FallbackConfig,
+  FallbackAction,
 } from "./types/index.js";
 
 export {
@@ -239,6 +241,9 @@ export {
   type CompanyPortabilityExport,
   type CompanyPortabilityPreview,
   type CompanyPortabilityImport,
+  fallbackConfigSchema,
+  DEFAULT_RATE_LIMIT_KEYWORDS,
+  type FallbackConfig as FallbackConfigValidator,
 } from "./validators/index.js";
 
 export { API_PREFIX, API } from "./api.js";

@@ -6,6 +6,7 @@ import {
   companyPortabilityPreviewSchema,
   createCompanySchema,
   updateCompanySchema,
+  fallbackConfigSchema,
 } from "@paperclipai/shared";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
@@ -176,6 +177,40 @@ export function companyRoutes(db: Db) {
       return;
     }
     res.json({ ok: true });
+  });
+
+  // Fallback configuration routes
+  router.get("/:companyId/fallback-config", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const company = await svc.getById(companyId);
+    if (!company) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+    res.json(company.fallbackConfig || {});
+  });
+
+  router.put("/:companyId/fallback-config", validate(fallbackConfigSchema), async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const company = await svc.update(companyId, { fallbackConfig: req.body });
+    if (!company) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+    await logActivity(db, {
+      companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "company.fallback_config_updated",
+      entityType: "company",
+      entityId: companyId,
+      details: req.body,
+    });
+    res.json(company.fallbackConfig || {});
   });
 
   return router;

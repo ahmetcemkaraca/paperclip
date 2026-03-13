@@ -1,4 +1,5 @@
 import type { CompanyStatus } from "../constants.js";
+import type { FallbackConfig } from "./fallback.js";
 
 export interface Company {
   id: string;
@@ -12,6 +13,7 @@ export interface Company {
   requireBoardApprovalForNewAgents: boolean;
   maxConcurrentAgents: number;
   brandColor: string | null;
+  fallbackConfig: FallbackConfig;
   createdAt: Date;
   updatedAt: Date;
 }

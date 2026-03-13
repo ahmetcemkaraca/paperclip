@@ -139,3 +139,9 @@ export {
   type UpdateMemberPermissions,
   type UpdateUserCompanyAccess,
 } from "./access.js";
+
+export {
+  fallbackConfigSchema,
+  DEFAULT_RATE_LIMIT_KEYWORDS,
+  type FallbackConfig,
+} from "./fallback.js";
