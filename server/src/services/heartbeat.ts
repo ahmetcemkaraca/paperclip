@@ -43,9 +43,11 @@ import {
 import {
   detectRateLimitInResult,
   resolveFallbackConfig,
+  shouldAttemptFallback,
   type FallbackDetectionResult,
 } from "./fallback.js";
 import { logActivity } from "./activity-log.js";
+import { DEFAULT_RATE_LIMIT_KEYWORDS } from "@paperclipai/shared";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
@@ -1467,7 +1469,7 @@ export function heartbeatService(db: Db) {
           "local agent jwt secret missing or invalid; running without injected PAPERCLIP_API_KEY",
         );
       }
-      const adapterResult = await adapter.execute({
+      let adapterResult = await adapter.execute({
         runId: run.id,
         agent,
         runtime: runtimeForAdapter,
@@ -1477,6 +1479,130 @@ export function heartbeatService(db: Db) {
         onMeta: onAdapterMeta,
         authToken: authToken ?? undefined,
       });
+
+      // Fallback adapter execution logic: detect rate-limits and retry if configured
+      const [company] = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.id, agent.companyId));
+      
+      if (company) {
+        const companyFallbackConfig = company.fallbackConfig || {};
+        const agentFallbackConfig = agent.fallbackConfig || {};
+        
+        const shouldFallback = shouldAttemptFallback(
+          agentFallbackConfig,
+          companyFallbackConfig,
+          adapterResult,
+        );
+
+        if (shouldFallback) {
+          const fallbackConfig = resolveFallbackConfig(agentFallbackConfig, companyFallbackConfig);
+          if (fallbackConfig?.modelId) {
+            const { detectedKeyword } = detectRateLimitInResult(
+              adapterResult,
+              fallbackConfig.rateLimitKeywords || DEFAULT_RATE_LIMIT_KEYWORDS,
+            );
+
+            const fallbackAdapterType = fallbackConfig.adapterType || agent.adapterType;
+            const fallbackAdapter = getServerAdapter(fallbackAdapterType);
+            const fallbackAuthToken = fallbackAdapter.supportsLocalAgentJwt
+              ? createLocalAgentJwt(agent.id, agent.companyId, fallbackAdapterType, run.id)
+              : null;
+
+            const fallbackModelConfig = {
+              ...resolvedConfig,
+              // Update model if it's a simple model override for same adapter
+              ...(fallbackAdapterType === agent.adapterType
+                ? { model: fallbackConfig.modelId }
+                : {}),
+            };
+
+            // Log fallback attempt
+            await onLog(
+              "stderr",
+              `\n[paperclip] Rate limit detected ("${detectedKeyword || "unknown"}"). Attempting fallback with ${fallbackAdapterType}/${fallbackConfig.modelId}...\n`,
+            );
+
+            try {
+              // Execute with fallback adapter/model
+              const fallbackResult = await fallbackAdapter.execute({
+                runId: run.id,
+                agent: { ...agent, adapterType: fallbackAdapterType },
+                runtime: runtimeForAdapter,
+                config: fallbackModelConfig,
+                context,
+                onLog,
+                onMeta: onAdapterMeta,
+                authToken: fallbackAuthToken ?? undefined,
+              });
+
+              // Log fallback result
+              await logActivity(db, {
+                companyId: agent.companyId,
+                actorType: "system",
+                actorId: "fallback",
+                action: "agent.fallback_executed",
+                entityType: "agent",
+                entityId: agent.id,
+                runId: run.id,
+                details: {
+                  primary: {
+                    adapterType: agent.adapterType,
+                    model: (agent.adapterConfig as Record<string, unknown>)?.model || "unknown",
+                  },
+                  fallback: {
+                    adapterType: fallbackAdapterType,
+                    model: fallbackConfig.modelId,
+                  },
+                  detectedKeyword: detectedKeyword || null,
+                  result: fallbackResult.exitCode === 0 ? "success" : "failed",
+                },
+              });
+
+              // Use fallback result for remainder of execution
+              adapterResult = fallbackResult;
+
+              if (fallbackResult.exitCode === 0 || !fallbackResult.errorMessage) {
+                await onLog(
+                  "stderr",
+                  `[paperclip] Fallback execution ${fallbackResult.exitCode === 0 ? "succeeded" : "failed"}.\n`,
+                );
+              }
+            } catch (fallbackErr) {
+              const fallbackErrorMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+              await onLog(
+                "stderr",
+                `[paperclip] Fallback execution error: ${fallbackErrorMsg}\n`,
+              );
+
+              // Log fallback error
+              await logActivity(db, {
+                companyId: agent.companyId,
+                actorType: "system",
+                actorId: "fallback",
+                action: "agent.fallback_failed",
+                entityType: "agent",
+                entityId: agent.id,
+                runId: run.id,
+                details: {
+                  primary: {
+                    adapterType: agent.adapterType,
+                    model: (agent.adapterConfig as Record<string, unknown>)?.model || "unknown",
+                  },
+                  fallback: {
+                    adapterType: fallbackAdapterType,
+                    model: fallbackConfig.modelId,
+                  },
+                  detectedKeyword: detectedKeyword || null,
+                  error: fallbackErrorMsg,
+                },
+              });
+            }
+          }
+        }
+      }
+
       const adapterManagedRuntimeServices = adapterResult.runtimeServices
         ? await persistAdapterManagedRuntimeServices({
             db,
