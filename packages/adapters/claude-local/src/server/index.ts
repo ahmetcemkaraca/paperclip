@@ -1,6 +1,6 @@
 export { execute, runClaudeLogin } from "./execute.js";
 export { testEnvironment } from "./test.js";
-export { listClaudeModels } from "./models.js";
+export { listClaudeModels, DEFAULT_CLAUDE_MODELS, resolveClaudeModelsFromSettings } from "./models.js";
 export {
   parseClaudeStreamJson,
   describeClaudeFailure,

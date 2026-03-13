@@ -7,6 +7,7 @@ import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { projectsApi } from "../api/projects";
 import { heartbeatsApi } from "../api/heartbeats";
+import { discussionsApi } from "../api/discussions";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -19,7 +20,7 @@ import { ActivityRow } from "../components/ActivityRow";
 import { Identity } from "../components/Identity";
 import { timeAgo } from "../lib/timeAgo";
 import { cn, formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard } from "lucide-react";
+import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard, MessageSquare } from "lucide-react";
 import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
 import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -79,8 +80,19 @@ export function Dashboard() {
     enabled: !!selectedCompanyId,
   });
 
+  const { data: discussions } = useQuery({
+    queryKey: queryKeys.discussions.list(selectedCompanyId!),
+    queryFn: () => discussionsApi.list(selectedCompanyId!),
+    enabled: !!selectedCompanyId,
+  });
+
   const recentIssues = issues ? getRecentIssues(issues) : [];
   const recentActivity = useMemo(() => (activity ?? []).slice(0, 10), [activity]);
+  const recentDiscussions = useMemo(() => {
+    return [...(discussions ?? [])]
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5);
+  }, [discussions]);
 
   useEffect(() => {
     for (const timer of activityAnimationTimersRef.current) {
@@ -298,6 +310,60 @@ export function Dashboard() {
               </div>
             )}
 
+            {/* Recent Discussions */}
+            <div className="min-w-0">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Recent Discussions
+                </h3>
+                <Link to="/discussions" className="text-xs text-muted-foreground hover:text-foreground">
+                  View all
+                </Link>
+              </div>
+              {recentDiscussions.length === 0 ? (
+                <div className="border border-border p-4">
+                  <p className="text-sm text-muted-foreground">No discussions yet.</p>
+                </div>
+              ) : (
+                <div className="border border-border divide-y divide-border overflow-hidden">
+                  {recentDiscussions.map((discussion) => (
+                    <Link
+                      key={discussion.id}
+                      to={`/discussions/${discussion.id}`}
+                      className="px-4 py-3 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
+                    >
+                      <div className="flex items-start gap-2">
+                        <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="line-clamp-2 text-sm font-medium">{discussion.title}</p>
+                          {discussion.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-1 mt-1">
+                              {discussion.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1.5">
+                            {discussion.authorAgentId ? (
+                              <span className="text-xs text-muted-foreground">
+                                {agentName(discussion.authorAgentId) ?? "Unknown"}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Board</span>
+                            )}
+                            <span className="text-xs text-muted-foreground">&middot;</span>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {timeAgo(discussion.updatedAt)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
             {/* Recent Tasks */}
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">

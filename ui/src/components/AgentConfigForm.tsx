@@ -231,25 +231,79 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     const agent = props.agent;
     const patch: Record<string, unknown> = {};
 
-    if (Object.keys(overlay.identity).length > 0) {
-      Object.assign(patch, overlay.identity);
+    // Helper to check if a value has actually changed from original
+    function hasChanged(newValue: unknown, originalValue: unknown): boolean {
+      // Handle undefined/null equivalence for optional fields
+      if (newValue === undefined && originalValue === undefined) return false;
+      if (newValue === null && originalValue === null) return false;
+      if (newValue === "" && (originalValue === "" || originalValue === undefined || originalValue === null)) return false;
+      
+      // Deep equality check for objects/arrays
+      if (typeof newValue === "object" && typeof originalValue === "object" && newValue !== null && originalValue !== null) {
+        return JSON.stringify(newValue) !== JSON.stringify(originalValue);
+      }
+      
+      return newValue !== originalValue;
     }
+
+    // Only include identity fields that actually changed
+    if (Object.keys(overlay.identity).length > 0) {
+      const identityChanges: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(overlay.identity)) {
+        const originalValue = agent[key as keyof Agent];
+        if (hasChanged(value, originalValue)) {
+          identityChanges[key] = value;
+        }
+      }
+      if (Object.keys(identityChanges).length > 0) {
+        Object.assign(patch, identityChanges);
+      }
+    }
+
     if (overlay.adapterType !== undefined) {
       patch.adapterType = overlay.adapterType;
       // When adapter type changes, send only the new config — don't merge
       // with old config since old adapter fields are meaningless for the new type
       patch.adapterConfig = overlay.adapterConfig;
     } else if (Object.keys(overlay.adapterConfig).length > 0) {
+      // Only include adapter config fields that actually changed
       const existing = (agent.adapterConfig ?? {}) as Record<string, unknown>;
-      patch.adapterConfig = { ...existing, ...overlay.adapterConfig };
+      const configChanges: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(overlay.adapterConfig)) {
+        if (hasChanged(value, existing[key])) {
+          configChanges[key] = value;
+        }
+      }
+      if (Object.keys(configChanges).length > 0) {
+        patch.adapterConfig = { ...existing, ...configChanges };
+      }
     }
+
     if (Object.keys(overlay.heartbeat).length > 0) {
       const existingRc = (agent.runtimeConfig ?? {}) as Record<string, unknown>;
       const existingHb = (existingRc.heartbeat ?? {}) as Record<string, unknown>;
-      patch.runtimeConfig = { ...existingRc, heartbeat: { ...existingHb, ...overlay.heartbeat } };
+      const heartbeatChanges: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(overlay.heartbeat)) {
+        if (hasChanged(value, existingHb[key])) {
+          heartbeatChanges[key] = value;
+        }
+      }
+      if (Object.keys(heartbeatChanges).length > 0) {
+        patch.runtimeConfig = { ...existingRc, heartbeat: { ...existingHb, ...heartbeatChanges } };
+      }
     }
+
     if (Object.keys(overlay.runtime).length > 0) {
-      Object.assign(patch, overlay.runtime);
+      const runtimeChanges: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(overlay.runtime)) {
+        const originalValue = agent[key as keyof Agent];
+        if (hasChanged(value, originalValue)) {
+          runtimeChanges[key] = value;
+        }
+      }
+      if (Object.keys(runtimeChanges).length > 0) {
+        Object.assign(patch, runtimeChanges);
+      }
     }
 
     props.onSave(patch);

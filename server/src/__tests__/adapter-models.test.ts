@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { models as codexFallbackModels } from "@paperclipai/adapter-codex-local";
 import { models as cursorFallbackModels } from "@paperclipai/adapter-cursor-local";
+import { DEFAULT_CLAUDE_MODELS } from "@paperclipai/adapter-claude-local/server";
 import { resetOpenCodeModelsCacheForTests } from "@paperclipai/adapter-opencode-local/server";
+import { resetCopilotModelsCacheForTests } from "@paperclipai/adapter-copilot-cli/server";
 import { listAdapterModels } from "../adapters/index.js";
 import { resetCodexModelsCacheForTests } from "../adapters/codex-models.js";
 import { resetCursorModelsCacheForTests, setCursorModelsRunnerForTests } from "../adapters/cursor-models.js";
@@ -14,6 +16,7 @@ describe("adapter model listing", () => {
     resetCursorModelsCacheForTests();
     setCursorModelsRunnerForTests(null);
     resetOpenCodeModelsCacheForTests();
+    resetCopilotModelsCacheForTests();
     vi.restoreAllMocks();
   });
 
@@ -100,5 +103,141 @@ describe("adapter model listing", () => {
 
     const models = await listAdapterModels("opencode_local");
     expect(models).toEqual([]);
+  });
+
+  describe("Claude adapter model resolution", () => {
+    it("reads settings correctly and returns models", async () => {
+      // Task 4.1: Ensure listClaudeModels() reads settings correctly
+      // This test verifies that the function successfully reads settings
+      // (either from ~/.claude/settings.json or falls back to defaults)
+      const models = await listAdapterModels("claude_local");
+      
+      // Should return a non-empty array
+      expect(models.length).toBeGreaterThan(0);
+      
+      // All models should have the required structure
+      for (const model of models) {
+        expect(model).toHaveProperty("id");
+        expect(model).toHaveProperty("label");
+        expect(typeof model.id).toBe("string");
+        expect(typeof model.label).toBe("string");
+        expect(model.id.trim()).toBeTruthy();
+        expect(model.label.trim()).toBeTruthy();
+      }
+    });
+
+    it("deduplicates models by ID", async () => {
+      // Task 4.1: Ensure model deduplication by ID
+      const models = await listAdapterModels("claude_local");
+      
+      const ids = models.map(m => m.id);
+      const uniqueIds = new Set(ids);
+      
+      // No duplicate IDs should exist
+      expect(ids.length).toBe(uniqueIds.size);
+    });
+
+    it("includes legacy models in the list", async () => {
+      // Task 4.1: Verify legacy models are included
+      const models = await listAdapterModels("claude_local");
+      
+      const modelIds = models.map(m => m.id);
+      
+      // Should include legacy models
+      expect(modelIds).toContain("claude-sonnet-4-5-20250929");
+      expect(modelIds).toContain("claude-haiku-4-5-20251001");
+    });
+
+    it("returns models with valid structure", async () => {
+      // Task 4.1: Verify model structure
+      const models = await listAdapterModels("claude_local");
+      
+      for (const model of models) {
+        expect(model).toHaveProperty("id");
+        expect(model).toHaveProperty("label");
+        expect(typeof model.id).toBe("string");
+        expect(typeof model.label).toBe("string");
+        expect(model.id.trim()).toBeTruthy();
+        expect(model.label.trim()).toBeTruthy();
+      }
+    });
+
+    it("DEFAULT_CLAUDE_MODELS contains expected fallback models", () => {
+      // Task 4.1: Verify fallback to DEFAULT_CLAUDE_MODELS structure
+      // This tests the constant directly to ensure fallback behavior is correct
+      expect(DEFAULT_CLAUDE_MODELS.length).toBeGreaterThan(0);
+      
+      const modelIds = DEFAULT_CLAUDE_MODELS.map(m => m.id);
+      
+      // Should include the default family models
+      expect(modelIds).toContain("claude-opus-4-6");
+      expect(modelIds).toContain("claude-sonnet-4-6");
+      expect(modelIds).toContain("claude-haiku-4-6");
+      
+      // Should include legacy models
+      expect(modelIds).toContain("claude-sonnet-4-5-20250929");
+      expect(modelIds).toContain("claude-haiku-4-5-20251001");
+    });
+  });
+
+  describe("Copilot adapter model resolution", () => {
+    it("returns fallback models when CLI discovery fails", async () => {
+      // Task 4.3: Verify fallback to COPILOT_FALLBACK_MODELS on failure
+      // When gh CLI is not available or commands fail, should return fallback models
+      const models = await listAdapterModels("copilot_cli");
+      
+      // Should return a non-empty array
+      expect(models.length).toBeGreaterThan(0);
+      
+      // All models should have the required structure
+      for (const model of models) {
+        expect(model).toHaveProperty("id");
+        expect(model).toHaveProperty("label");
+        expect(typeof model.id).toBe("string");
+        expect(typeof model.label).toBe("string");
+        expect(model.id.trim()).toBeTruthy();
+        expect(model.label.trim()).toBeTruthy();
+      }
+    });
+
+    it("includes all expected fallback models", async () => {
+      // Task 4.3: Ensure all expected models are present
+      const models = await listAdapterModels("copilot_cli");
+      
+      const modelIds = models.map(m => m.id);
+      
+      // Should include all fallback models from COPILOT_FALLBACK_MODELS
+      expect(modelIds).toContain("gpt-4o");
+      expect(modelIds).toContain("gpt-4.1");
+      expect(modelIds).toContain("claude-sonnet-4");
+      expect(modelIds).toContain("o3");
+      expect(modelIds).toContain("o4-mini");
+      expect(modelIds).toContain("gemini-2.5-pro");
+    });
+
+    it("deduplicates models by ID", async () => {
+      // Task 4.3: Ensure model deduplication by ID
+      const models = await listAdapterModels("copilot_cli");
+      
+      const ids = models.map(m => m.id);
+      const uniqueIds = new Set(ids);
+      
+      // No duplicate IDs should exist
+      expect(ids.length).toBe(uniqueIds.size);
+    });
+
+    it("returns models with valid structure", async () => {
+      // Task 4.3: Verify model structure
+      const models = await listAdapterModels("copilot_cli");
+      
+      for (const model of models) {
+        expect(model).toHaveProperty("id");
+        expect(model).toHaveProperty("label");
+        expect(typeof model.id).toBe("string");
+        expect(typeof model.label).toBe("string");
+        expect(model.id.trim()).toBeTruthy();
+        expect(model.label.trim()).toBeTruthy();
+      }
+    });
   });
 });
