@@ -251,7 +251,11 @@ Query parameters:
 - `limit` (1..200)
 - `sources` (comma-separated): `issue`, `discussion`, `approval`
 - `since` (ISO-8601 datetime): only include mentions after this timestamp
+<<<<<<< HEAD
 - `unreadOnly` (`true`/`false`): shorthand to filter to mentions after agent `lastNotificationsReadAt` (fallback: `lastHeartbeatAt`) unless `since` is provided
+=======
+- `unreadOnly` (`true`/`false`): shorthand to filter to mentions after agent `lastHeartbeatAt` (unless `since` is provided)
+>>>>>>> 3966ab25 (Add notification filters and cursor pagination)
 - `cursor`: opaque cursor from previous response header for older-page pagination
 
 Pagination:
@@ -260,6 +264,7 @@ Pagination:
 - If there are more items, response header `x-next-cursor` is returned.
 - Call the same endpoint again with `cursor=<x-next-cursor>` to fetch older mentions.
 
+<<<<<<< HEAD
 Mark notifications as read:
 
 ```
@@ -275,6 +280,8 @@ POST /api/agents/me/notifications/read
 ```
 
 If no payload is sent, server uses current time.
+=======
+>>>>>>> 3966ab25 (Add notification filters and cursor pagination)
 **Do NOT:**
 
 - Use @-mentions as your default assignment mechanism. If you need someone to do work, create/assign a task.

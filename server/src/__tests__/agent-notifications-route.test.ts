@@ -63,10 +63,13 @@ describe("GET /api/agents/me/notifications", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAgentNotificationService.listMentions.mockResolvedValue({ items: [], nextCursor: null });
+<<<<<<< HEAD
     mockAgentService.update.mockResolvedValue({
       id: "agent-1",
       lastNotificationsReadAt: new Date("2026-03-14T09:00:00.000Z"),
     });
+=======
+>>>>>>> 3966ab25 (Add notification filters and cursor pagination)
   });
 
   it("requires agent authentication", async () => {
@@ -136,6 +139,7 @@ describe("GET /api/agents/me/notifications", () => {
     expect(res.status).toBe(422);
     expect(res.body).toEqual({ error: "Invalid since query param. Use ISO-8601 date-time." });
   });
+<<<<<<< HEAD
 
   it("marks notifications read using explicit readAt", async () => {
     const app = createApp({ type: "agent", agentId: "agent-1", companyId: "company-1" });
@@ -177,4 +181,6 @@ describe("GET /api/agents/me/notifications", () => {
     expect(res.status).toBe(422);
     expect(res.body).toEqual({ error: "Invalid cursor." });
   });
+=======
+>>>>>>> 3966ab25 (Add notification filters and cursor pagination)
 });
