@@ -260,12 +260,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       }
     }
 
-    if (overlay.adapterType !== undefined) {
+    if (overlay.adapterType !== undefined && hasChanged(overlay.adapterType, agent.adapterType)) {
       patch.adapterType = overlay.adapterType;
-      // When adapter type changes, send only the new config — don't merge
-      // with old config since old adapter fields are meaningless for the new type
-      patch.adapterConfig = overlay.adapterConfig;
-    } else if (Object.keys(overlay.adapterConfig).length > 0) {
+    }
+
+    if (Object.keys(overlay.adapterConfig).length > 0) {
       // Only include adapter config fields that actually changed
       const existing = (agent.adapterConfig ?? {}) as Record<string, unknown>;
       const configChanges: Record<string, unknown> = {};
@@ -565,31 +564,9 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                   }
                   set!(nextValues);
                 } else {
-                  // Clear all adapter config and explicitly blank out model + effort/mode keys
-                  // so the old adapter's values don't bleed through via eff()
                   setOverlay((prev) => ({
                     ...prev,
-                    adapterType: t,
-                    adapterConfig: {
-                      model:
-                        t === "codex_local"
-                          ? DEFAULT_CODEX_LOCAL_MODEL
-                          : t === "gemini_local"
-                            ? DEFAULT_GEMINI_LOCAL_MODEL
-                          : t === "cursor"
-                            ? DEFAULT_CURSOR_LOCAL_MODEL
-                          : "",
-                      effort: "",
-                      modelReasoningEffort: "",
-                      variant: "",
-                      mode: "",
-                      ...(t === "codex_local"
-                        ? {
-                            dangerouslyBypassApprovalsAndSandbox:
-                              DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
-                          }
-                        : {}),
-                    },
+                    adapterType: t === props.agent.adapterType ? undefined : t,
                   }));
                 }
               }}

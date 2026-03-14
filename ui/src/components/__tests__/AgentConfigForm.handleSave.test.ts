@@ -66,11 +66,11 @@ describe("AgentConfigForm handleSave - Minimal Patch Generation", () => {
       }
     }
 
-    if (overlay.adapterType !== undefined) {
+    if (overlay.adapterType !== undefined && hasChanged(overlay.adapterType, agent.adapterType)) {
       patch.adapterType = overlay.adapterType;
-      // When adapter type changes, send only the new config
-      patch.adapterConfig = overlay.adapterConfig;
-    } else if (Object.keys(overlay.adapterConfig).length > 0) {
+    }
+
+    if (Object.keys(overlay.adapterConfig).length > 0) {
       // Only include adapter config fields that actually changed
       const existing = agent.adapterConfig ?? {};
       const configChanges: Record<string, unknown> = {};
@@ -202,7 +202,7 @@ describe("AgentConfigForm handleSave - Minimal Patch Generation", () => {
     });
   });
 
-  it("should replace entire adapterConfig when adapter type changes (Req 8.7)", () => {
+  it("should preserve unchanged adapterConfig keys when adapter type changes", () => {
     const agent = {
       name: "test-agent",
       adapterType: "codex_local",
@@ -225,16 +225,16 @@ describe("AgentConfigForm handleSave - Minimal Patch Generation", () => {
 
     const patch = buildPatch(overlay, agent);
 
-    // Should replace entire config, not merge with old adapter fields
+    // Should preserve unchanged keys and only patch changed fields
     expect(patch).toEqual({
       adapterType: "claude_local",
       adapterConfig: {
         model: "claude-3-5-sonnet-20241022",
         effort: "medium",
+        modelReasoningEffort: "high",
+        search: true,
       },
     });
-    expect(patch.adapterConfig).not.toHaveProperty("modelReasoningEffort");
-    expect(patch.adapterConfig).not.toHaveProperty("search");
   });
 
   it("should only include changed fields in minimal patch (Req 5.4, 5.6)", () => {
