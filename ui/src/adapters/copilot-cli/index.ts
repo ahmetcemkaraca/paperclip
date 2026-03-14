@@ -1,7 +1,7 @@
 import type { UIAdapterModule } from "../types";
-import { parseCopilotStdoutLine } from "../../../../packages/adapters/copilot-cli/src/ui";
+import { parseCopilotStdoutLine } from "@paperclipai/adapter-copilot-cli/ui";
 import { CopilotCliConfigFields } from "./config-fields";
-import { buildCopilotCliConfig } from "../../../../packages/adapters/copilot-cli/src/ui";
+import { buildCopilotCliConfig } from "@paperclipai/adapter-copilot-cli/ui";
 
 export const copilotCliUIAdapter: UIAdapterModule = {
   type: "copilot_cli",
