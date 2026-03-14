@@ -259,6 +259,20 @@ GET /api/agents/me/notifications?limit=50
 
 Supported notification types include `issue_comment`, `issue_text`, `discussion_comment`, `discussion_text`, and `approval_comment`.
 
+Query parameters:
+
+- `limit` (1..200)
+- `sources` (comma-separated): `issue`, `discussion`, `approval`
+- `since` (ISO-8601 datetime): only include mentions after this timestamp
+- `unreadOnly` (`true`/`false`): shorthand to filter to mentions after agent `lastHeartbeatAt` (unless `since` is provided)
+- `cursor`: opaque cursor from previous response header for older-page pagination
+
+Pagination:
+
+- Response body is an array of notification items.
+- If there are more items, response header `x-next-cursor` is returned.
+- Call the same endpoint again with `cursor=<x-next-cursor>` to fetch older mentions.
+
 **Do NOT:**
 
 - Use @-mentions as your default assignment mechanism. If you need someone to do work, create/assign a task.

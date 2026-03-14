@@ -18,6 +18,8 @@ export type AgentMentionNotificationType =
   | "discussion_text"
   | "approval_comment";
 
+export type AgentMentionSource = "issue" | "discussion" | "approval";
+
 export interface AgentMentionNotification {
   id: string;
   type: AgentMentionNotificationType;
@@ -31,6 +33,16 @@ export interface AgentMentionNotification {
   approvalId?: string | null;
   authorAgentId?: string | null;
   authorUserId?: string | null;
+}
+
+export interface AgentMentionNotificationPage {
+  items: AgentMentionNotification[];
+  nextCursor: string | null;
+}
+
+interface AgentMentionCursor {
+  createdAtIso: string;
+  id: string;
 }
 
 function excerpt(value: string | null | undefined, max = 240) {
@@ -60,24 +72,69 @@ function mentionsAgent(text: string | null | undefined, aliases: Set<string>) {
   return false;
 }
 
+function typeToSource(type: AgentMentionNotificationType): AgentMentionSource {
+  if (type === "issue_comment" || type === "issue_text") return "issue";
+  if (type === "discussion_comment" || type === "discussion_text") return "discussion";
+  return "approval";
+}
+
+function parseCursor(cursor: string | undefined): AgentMentionCursor | null {
+  if (!cursor) return null;
+  try {
+    const decoded = Buffer.from(cursor, "base64url").toString("utf8");
+    const parsed = JSON.parse(decoded) as Partial<AgentMentionCursor>;
+    if (typeof parsed.createdAtIso !== "string" || typeof parsed.id !== "string") return null;
+    if (Number.isNaN(new Date(parsed.createdAtIso).getTime())) return null;
+    return { createdAtIso: parsed.createdAtIso, id: parsed.id };
+  } catch {
+    return null;
+  }
+}
+
+function buildCursor(item: AgentMentionNotification): string {
+  return Buffer.from(JSON.stringify({ createdAtIso: item.createdAt.toISOString(), id: item.id }), "utf8").toString(
+    "base64url",
+  );
+}
+
+function isStrictlyOlderThanCursor(item: AgentMentionNotification, cursor: AgentMentionCursor) {
+  const itemTs = item.createdAt.getTime();
+  const cursorTs = new Date(cursor.createdAtIso).getTime();
+  if (itemTs < cursorTs) return true;
+  if (itemTs > cursorTs) return false;
+  return item.id < cursor.id;
+}
+
 export function agentNotificationService(db: Db) {
   return {
-    listMentions: async (input: { companyId: string; agentId: string; limit?: number }) => {
+    listMentions: async (input: {
+      companyId: string;
+      agentId: string;
+      limit?: number;
+      sources?: AgentMentionSource[];
+      since?: Date | null;
+      unreadOnly?: boolean;
+      cursor?: string;
+    }): Promise<AgentMentionNotificationPage> => {
       const limit = Math.max(1, Math.min(200, Math.floor(input.limit ?? 50)));
-      const scanLimit = Math.max(limit * 4, 120);
+      const scanLimit = Math.max(limit * 8, 200);
 
       const agent = await db
-        .select({ id: agents.id, name: agents.name })
+        .select({ id: agents.id, name: agents.name, lastHeartbeatAt: agents.lastHeartbeatAt })
         .from(agents)
         .where(eq(agents.id, input.agentId))
         .then((rows) => rows[0] ?? null);
-      if (!agent) return [];
+      if (!agent) return { items: [], nextCursor: null };
 
       const aliases = new Set<string>();
       const normalizedName = agent.name.trim().toLowerCase();
       if (normalizedName) aliases.add(normalizedName);
       const normalizedUrlKey = normalizeAgentUrlKey(agent.name);
       if (normalizedUrlKey) aliases.add(normalizedUrlKey.toLowerCase());
+      const cursor = parseCursor(input.cursor);
+      const sourceSet = new Set(input.sources ?? []);
+      const applySourceFilter = sourceSet.size > 0;
+      const threshold = input.since ?? (input.unreadOnly ? (agent.lastHeartbeatAt ?? null) : null);
 
       const [issueCommentRows, issueRows, discussionCommentRows, discussionRows, approvalCommentRows] =
         await Promise.all([
@@ -240,8 +297,28 @@ export function agentNotificationService(db: Db) {
         });
       }
 
-      notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      return notifications.slice(0, limit);
+      notifications.sort((a, b) => {
+        const timeDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return b.id.localeCompare(a.id);
+      });
+
+      let filtered = notifications;
+      if (applySourceFilter) {
+        filtered = filtered.filter((item) => sourceSet.has(typeToSource(item.type)));
+      }
+      if (threshold) {
+        const thresholdTs = threshold.getTime();
+        filtered = filtered.filter((item) => item.createdAt.getTime() > thresholdTs);
+      }
+      if (cursor) {
+        filtered = filtered.filter((item) => isStrictlyOlderThanCursor(item, cursor));
+      }
+
+      const hasMore = filtered.length > limit;
+      const items = filtered.slice(0, limit);
+      const nextCursor = hasMore && items.length > 0 ? buildCursor(items[items.length - 1] as AgentMentionNotification) : null;
+      return { items, nextCursor };
     },
   };
 }

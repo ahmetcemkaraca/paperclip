@@ -615,12 +615,44 @@ export function agentRoutes(db: Db) {
     }
 
     const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : undefined;
-    const items = await notificationsSvc.listMentions({
+    const rawSources = typeof req.query.sources === "string" ? req.query.sources : null;
+    const sources = rawSources
+      ? Array.from(
+          new Set(
+            rawSources
+              .split(",")
+              .map((value) => value.trim().toLowerCase())
+              .filter((value): value is "issue" | "discussion" | "approval" =>
+                value === "issue" || value === "discussion" || value === "approval",
+              ),
+          ),
+        )
+      : undefined;
+    const rawSince = typeof req.query.since === "string" ? req.query.since : null;
+    const since = rawSince ? new Date(rawSince) : null;
+    if (rawSince && Number.isNaN(since?.getTime())) {
+      res.status(422).json({ error: "Invalid since query param. Use ISO-8601 date-time." });
+      return;
+    }
+    const unreadOnly =
+      typeof req.query.unreadOnly === "string"
+        ? ["1", "true", "yes", "on"].includes(req.query.unreadOnly.trim().toLowerCase())
+        : false;
+    const cursor = typeof req.query.cursor === "string" && req.query.cursor.length > 0 ? req.query.cursor : undefined;
+
+    const page = await notificationsSvc.listMentions({
       companyId: req.actor.companyId,
       agentId: req.actor.agentId,
       limit: Number.isFinite(rawLimit) ? rawLimit : undefined,
+      sources,
+      since,
+      unreadOnly,
+      cursor,
     });
-    res.json(items);
+    if (page.nextCursor) {
+      res.setHeader("x-next-cursor", page.nextCursor);
+    }
+    res.json(page.items);
   });
 
   router.get("/agents/:id", async (req, res) => {
