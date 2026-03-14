@@ -42,7 +42,7 @@ interface DiscussionComment {
 }
 
 export function DiscussionsList() {
-  const { selectedCompanyId, selectedCompany } = useCompany();
+  const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -76,7 +76,7 @@ export function DiscussionsList() {
       setDescription("");
       setNewDiscussionOpen(false);
       queryClient.invalidateQueries({ queryKey: queryKeys.discussions.list(selectedCompanyId!) });
-      navigate(`/${selectedCompany?.issuePrefix}/discussions/${discussion.id}`);
+      navigate(`/discussions/${discussion.id}`);
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : "Failed to create discussion");
@@ -163,7 +163,7 @@ export function DiscussionsList() {
           {sorted.map((discussion) => (
             <Link
               key={discussion.id}
-              to={`/${selectedCompany?.issuePrefix}/discussions/${discussion.id}`}
+              to={`/discussions/${discussion.id}`}
               className="block border border-border rounded-lg p-4 hover:bg-accent/50 transition-colors"
             >
               <div className="space-y-2">
@@ -192,7 +192,7 @@ export function DiscussionsList() {
 
 export function DiscussionDetail() {
   const { discussionId } = useParams<{ discussionId: string }>();
-  const { selectedCompanyId, selectedCompany } = useCompany();
+  const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const [comment, setComment] = useState("");
@@ -239,11 +239,11 @@ export function DiscussionDetail() {
   useEffect(() => {
     if (discussion) {
       setBreadcrumbs([
-        { label: "Forum", href: `/${selectedCompany?.issuePrefix}/discussions` },
+        { label: "Forum", href: "/discussions" },
         { label: discussion.title },
       ]);
     }
-  }, [discussion, setBreadcrumbs, selectedCompany]);
+  }, [discussion, setBreadcrumbs]);
 
   if (!discussion) {
     return <PageSkeleton />;
@@ -256,13 +256,11 @@ export function DiscussionDetail() {
       <div className="space-y-3">
         <h1 className="text-2xl font-bold">{discussion.title}</h1>
         {discussion.description && (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <MarkdownBody>{discussion.description}</MarkdownBody>
-          </div>
+          <MarkdownBody>{discussion.description}</MarkdownBody>
         )}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           {discussion.authorAgentId ? (
-            <Link to={`/${selectedCompany?.issuePrefix}/agents/${discussion.authorAgentId}`} className="hover:underline">
+            <Link to={`/agents/${discussion.authorAgentId}`} className="hover:underline">
               <Identity
                 name={agentMap.get(discussion.authorAgentId)?.name ?? "Unknown"}
                 size="sm"
@@ -287,10 +285,10 @@ export function DiscussionDetail() {
           ) : (
             <div className="space-y-3 pr-4">
               {(comments ?? []).map((c: DiscussionComment) => (
-                <div key={c.id} className="border border-border rounded-lg p-4 bg-card">
-                  <div className="flex items-center justify-between mb-3">
+                <div key={c.id} className="border border-border rounded p-3">
+                  <div className="flex items-center justify-between mb-2">
                     {c.authorAgentId ? (
-                      <Link to={`/${selectedCompany?.issuePrefix}/agents/${c.authorAgentId}`} className="hover:underline">
+                      <Link to={`/agents/${c.authorAgentId}`} className="hover:underline">
                         <Identity
                           name={agentMap.get(c.authorAgentId)?.name ?? "Unknown"}
                           size="sm"
@@ -303,9 +301,7 @@ export function DiscussionDetail() {
                       {formatDateTime(c.createdAt)}
                     </span>
                   </div>
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <MarkdownBody className="text-sm">{c.body}</MarkdownBody>
-                  </div>
+                  <MarkdownBody className="text-sm">{c.body}</MarkdownBody>
                 </div>
               ))}
             </div>
