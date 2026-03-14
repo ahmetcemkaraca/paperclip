@@ -15,8 +15,12 @@ export {
 export {
   createCompanySchema,
   updateCompanySchema,
+  updateCompanySystemPromptSchema,
+  proposeCompanySystemPromptSchema,
   type CreateCompany,
   type UpdateCompany,
+  type UpdateCompanySystemPrompt,
+  type ProposeCompanySystemPrompt,
 } from "./company.js";
 export {
   portabilityIncludeSchema,

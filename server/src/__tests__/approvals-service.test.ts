@@ -8,6 +8,9 @@ const mockAgentService = vi.hoisted(() => ({
 }));
 
 const mockNotifyHireApproved = vi.hoisted(() => vi.fn());
+const mockCompanyService = vi.hoisted(() => ({
+  update: vi.fn(),
+}));
 
 vi.mock("../services/agents.js", () => ({
   agentService: vi.fn(() => mockAgentService),
@@ -15,6 +18,10 @@ vi.mock("../services/agents.js", () => ({
 
 vi.mock("../services/hire-hook.js", () => ({
   notifyHireApproved: mockNotifyHireApproved,
+}));
+
+vi.mock("../services/companies.js", () => ({
+  companyService: vi.fn(() => mockCompanyService),
 }));
 
 type ApprovalRecord = {
@@ -62,6 +69,7 @@ describe("approvalService resolution idempotency", () => {
     mockAgentService.create.mockResolvedValue({ id: "agent-1" });
     mockAgentService.terminate.mockResolvedValue(undefined);
     mockNotifyHireApproved.mockResolvedValue(undefined);
+    mockCompanyService.update.mockResolvedValue({ id: "company-1" });
   });
 
   it("treats repeated approve retries as no-ops after another worker resolves the approval", async () => {
@@ -103,5 +111,32 @@ describe("approvalService resolution idempotency", () => {
     expect(result.applied).toBe(true);
     expect(mockAgentService.activatePendingApproval).toHaveBeenCalledWith("agent-1");
     expect(mockNotifyHireApproved).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies company system prompt update when approval type is update_company_system_prompt", async () => {
+    const pending: ApprovalRecord = {
+      ...createApproval("pending"),
+      type: "update_company_system_prompt",
+      payload: {
+        content: "# COMPANY.md\n\nUpdated company prompt",
+      },
+    };
+    const approved: ApprovalRecord = {
+      ...pending,
+      status: "approved",
+    };
+    const dbStub = createDbStub([[pending]], [approved]);
+
+    const svc = approvalService(dbStub.db as any);
+    const result = await svc.approve("approval-1", "board", "ok");
+
+    expect(result.applied).toBe(true);
+    expect(mockCompanyService.update).toHaveBeenCalledTimes(1);
+    expect(mockCompanyService.update).toHaveBeenCalledWith(
+      "company-1",
+      expect.objectContaining({
+        systemPromptMd: "# COMPANY.md\n\nUpdated company prompt",
+      }),
+    );
   });
 });

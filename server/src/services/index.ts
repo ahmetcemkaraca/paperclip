@@ -15,6 +15,7 @@ export { financeService } from "./finance.js";
 export { heartbeatService } from "./heartbeat.js";
 export { dashboardService } from "./dashboard.js";
 export { sidebarBadgeService } from "./sidebar-badges.js";
+export { agentNotificationService } from "./agent-notifications.js";
 export { accessService } from "./access.js";
 export { instanceSettingsService } from "./instance-settings.js";
 export { companyPortabilityService } from "./company-portability.js";

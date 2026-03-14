@@ -122,6 +122,10 @@ If anything cannot be run, explicitly report what was not run and why.
 - Agent access uses bearer API keys (`agent_api_keys`), hashed at rest
 - Agent keys must not access other companies
 
+Agent runtime expectation:
+
+- Before starting a task cycle, agents should query `GET /api/agents/me/notifications` and review fresh mentions.
+
 When adding endpoints:
 
 - apply company access checks

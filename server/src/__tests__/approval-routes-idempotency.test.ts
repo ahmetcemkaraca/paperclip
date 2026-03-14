@@ -25,6 +25,10 @@ const mockIssueApprovalService = vi.hoisted(() => ({
   linkManyForApproval: vi.fn(),
 }));
 
+const mockIssueService = vi.hoisted(() => ({
+  findMentionedAgents: vi.fn(),
+}));
+
 const mockSecretService = vi.hoisted(() => ({
   normalizeHireApprovalPayloadForPersistence: vi.fn(),
 }));
@@ -35,6 +39,7 @@ vi.mock("../services/index.js", () => ({
   approvalService: () => mockApprovalService,
   heartbeatService: () => mockHeartbeatService,
   issueApprovalService: () => mockIssueApprovalService,
+  issueService: () => mockIssueService,
   logActivity: mockLogActivity,
   secretService: () => mockSecretService,
 }));
@@ -61,6 +66,7 @@ describe("approval routes idempotent retries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockHeartbeatService.wakeup.mockResolvedValue({ id: "wake-1" });
+    mockIssueService.findMentionedAgents.mockResolvedValue([]);
     mockIssueApprovalService.listIssuesForApproval.mockResolvedValue([{ id: "issue-1" }]);
     mockLogActivity.mockResolvedValue(undefined);
   });
