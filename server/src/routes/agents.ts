@@ -655,6 +655,54 @@ export function agentRoutes(db: Db) {
     res.json(page.items);
   });
 
+  router.post("/agents/me/notifications/read", async (req, res) => {
+    if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.companyId) {
+      res.status(401).json({ error: "Agent authentication required" });
+      return;
+    }
+
+    let readAt = new Date();
+    const rawReadAt = typeof req.body?.readAt === "string" ? req.body.readAt : null;
+    const rawCursor = typeof req.body?.cursor === "string" ? req.body.cursor : null;
+
+    if (rawReadAt) {
+      const parsedReadAt = new Date(rawReadAt);
+      if (Number.isNaN(parsedReadAt.getTime())) {
+        res.status(422).json({ error: "Invalid readAt. Use ISO-8601 date-time." });
+        return;
+      }
+      readAt = parsedReadAt;
+    } else if (rawCursor) {
+      try {
+        const decoded = Buffer.from(rawCursor, "base64url").toString("utf8");
+        const parsed = JSON.parse(decoded) as { createdAtIso?: string };
+        const cursorReadAt = parsed.createdAtIso ? new Date(parsed.createdAtIso) : new Date(NaN);
+        if (Number.isNaN(cursorReadAt.getTime())) {
+          res.status(422).json({ error: "Invalid cursor." });
+          return;
+        }
+        readAt = cursorReadAt;
+      } catch {
+        res.status(422).json({ error: "Invalid cursor." });
+        return;
+      }
+    }
+
+    const updated = await svc.update(req.actor.agentId, {
+      lastNotificationsReadAt: readAt,
+    });
+
+    if (!updated) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    res.json({
+      agentId: updated.id,
+      lastNotificationsReadAt: updated.lastNotificationsReadAt,
+    });
+  });
+
   router.get("/agents/:id", async (req, res) => {
     const id = req.params.id as string;
     const agent = await svc.getById(id);

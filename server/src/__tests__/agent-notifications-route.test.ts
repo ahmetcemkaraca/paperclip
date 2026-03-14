@@ -5,6 +5,7 @@ import { agentRoutes } from "../routes/agents.js";
 
 const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
+  update: vi.fn(),
 }));
 
 const mockHeartbeatService = vi.hoisted(() => ({
@@ -62,6 +63,10 @@ describe("GET /api/agents/me/notifications", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAgentNotificationService.listMentions.mockResolvedValue({ items: [], nextCursor: null });
+    mockAgentService.update.mockResolvedValue({
+      id: "agent-1",
+      lastNotificationsReadAt: new Date("2026-03-14T09:00:00.000Z"),
+    });
   });
 
   it("requires agent authentication", async () => {
@@ -130,5 +135,46 @@ describe("GET /api/agents/me/notifications", () => {
 
     expect(res.status).toBe(422);
     expect(res.body).toEqual({ error: "Invalid since query param. Use ISO-8601 date-time." });
+  });
+
+  it("marks notifications read using explicit readAt", async () => {
+    const app = createApp({ type: "agent", agentId: "agent-1", companyId: "company-1" });
+    const res = await request(app)
+      .post("/api/agents/me/notifications/read")
+      .send({ readAt: "2026-03-14T09:00:00.000Z" });
+
+    expect(res.status).toBe(200);
+    expect(mockAgentService.update).toHaveBeenCalledWith(
+      "agent-1",
+      expect.objectContaining({ lastNotificationsReadAt: new Date("2026-03-14T09:00:00.000Z") }),
+    );
+    expect(res.body).toMatchObject({ agentId: "agent-1" });
+  });
+
+  it("marks notifications read using cursor", async () => {
+    const cursor = Buffer.from(
+      JSON.stringify({ createdAtIso: "2026-03-14T08:30:00.000Z", id: "cmt-2" }),
+      "utf8",
+    ).toString("base64url");
+    const app = createApp({ type: "agent", agentId: "agent-1", companyId: "company-1" });
+    const res = await request(app)
+      .post("/api/agents/me/notifications/read")
+      .send({ cursor });
+
+    expect(res.status).toBe(200);
+    expect(mockAgentService.update).toHaveBeenCalledWith(
+      "agent-1",
+      expect.objectContaining({ lastNotificationsReadAt: new Date("2026-03-14T08:30:00.000Z") }),
+    );
+  });
+
+  it("returns 422 for invalid read cursor", async () => {
+    const app = createApp({ type: "agent", agentId: "agent-1", companyId: "company-1" });
+    const res = await request(app)
+      .post("/api/agents/me/notifications/read")
+      .send({ cursor: "not-base64" });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toEqual({ error: "Invalid cursor." });
   });
 });

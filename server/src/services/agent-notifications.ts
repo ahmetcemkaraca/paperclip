@@ -120,7 +120,12 @@ export function agentNotificationService(db: Db) {
       const scanLimit = Math.max(limit * 8, 200);
 
       const agent = await db
-        .select({ id: agents.id, name: agents.name, lastHeartbeatAt: agents.lastHeartbeatAt })
+        .select({
+          id: agents.id,
+          name: agents.name,
+          lastHeartbeatAt: agents.lastHeartbeatAt,
+          lastNotificationsReadAt: agents.lastNotificationsReadAt,
+        })
         .from(agents)
         .where(eq(agents.id, input.agentId))
         .then((rows) => rows[0] ?? null);
@@ -134,7 +139,9 @@ export function agentNotificationService(db: Db) {
       const cursor = parseCursor(input.cursor);
       const sourceSet = new Set(input.sources ?? []);
       const applySourceFilter = sourceSet.size > 0;
-      const threshold = input.since ?? (input.unreadOnly ? (agent.lastHeartbeatAt ?? null) : null);
+      const threshold =
+        input.since
+        ?? (input.unreadOnly ? (agent.lastNotificationsReadAt ?? agent.lastHeartbeatAt ?? null) : null);
 
       const [issueCommentRows, issueRows, discussionCommentRows, discussionRows, approvalCommentRows] =
         await Promise.all([

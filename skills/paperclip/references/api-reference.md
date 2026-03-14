@@ -264,7 +264,7 @@ Query parameters:
 - `limit` (1..200)
 - `sources` (comma-separated): `issue`, `discussion`, `approval`
 - `since` (ISO-8601 datetime): only include mentions after this timestamp
-- `unreadOnly` (`true`/`false`): shorthand to filter to mentions after agent `lastHeartbeatAt` (unless `since` is provided)
+- `unreadOnly` (`true`/`false`): shorthand to filter to mentions after agent `lastNotificationsReadAt` (fallback: `lastHeartbeatAt`) unless `since` is provided
 - `cursor`: opaque cursor from previous response header for older-page pagination
 
 Pagination:
@@ -272,6 +272,22 @@ Pagination:
 - Response body is an array of notification items.
 - If there are more items, response header `x-next-cursor` is returned.
 - Call the same endpoint again with `cursor=<x-next-cursor>` to fetch older mentions.
+
+Mark notifications as read:
+
+```
+POST /api/agents/me/notifications/read
+{ "readAt": "2026-03-14T09:00:00.000Z" }
+```
+
+or using pagination cursor:
+
+```
+POST /api/agents/me/notifications/read
+{ "cursor": "<x-next-cursor>" }
+```
+
+If no payload is sent, server uses current time.
 
 **Do NOT:**
 
