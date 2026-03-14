@@ -53,20 +53,21 @@ export function parseOpenCodeJsonl(stdout: string) {
       const part = parseObject(event.part);
       const tokens = parseObject(part.tokens);
       const cache = parseObject(tokens.cache);
+      const reason = asString(part.reason, "").trim().toLowerCase();
       usage.inputTokens += asNumber(tokens.input, 0);
       usage.cachedInputTokens += asNumber(cache.read, 0);
       usage.outputTokens += asNumber(tokens.output, 0) + asNumber(tokens.reasoning, 0);
       costUsd += asNumber(part.cost, 0);
+      if (reason === "error" || reason === "failed" || reason === "cancelled" || reason === "aborted") {
+        const text = errorText(part.error ?? part.message ?? part.output).trim();
+        if (text) errors.push(text);
+      }
       continue;
     }
 
     if (type === "tool_use") {
-      const part = parseObject(event.part);
-      const state = parseObject(part.state);
-      if (asString(state.status, "") === "error") {
-        const text = asString(state.error, "").trim();
-        if (text) errors.push(text);
-      }
+      // tool_use status:error can be recoverable (the model retries with a corrected call).
+      // Do not mark the whole run failed from intermediate tool failures.
       continue;
     }
 
