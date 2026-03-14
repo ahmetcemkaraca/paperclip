@@ -1,4 +1,5 @@
 import type { CreateConfigValues } from "@paperclipai/adapter-utils";
+import { DEFAULT_PI_LOCAL_MODEL } from "../index.js";
 
 function parseEnvVars(text: string): Record<string, string> {
   const env: Record<string, string> = {};
@@ -49,7 +50,7 @@ export function buildPiLocalConfig(v: CreateConfigValues): Record<string, unknow
   if (v.instructionsFilePath) ac.instructionsFilePath = v.instructionsFilePath;
   if (v.promptTemplate) ac.promptTemplate = v.promptTemplate;
   if (v.bootstrapPrompt) ac.bootstrapPromptTemplate = v.bootstrapPrompt;
-  if (v.model) ac.model = v.model;
+  ac.model = v.model || DEFAULT_PI_LOCAL_MODEL;
   if (v.thinkingEffort) ac.thinking = v.thinkingEffort;
   
   // Pi sessions can run until the CLI exits naturally; keep timeout disabled (0)

@@ -3,7 +3,10 @@ import { runChildProcess } from "@paperclipai/adapter-utils/server-utils";
 
 const CACHE_TTL_MS = 60_000;
 
+const AUTO_MODEL: AdapterModel = { id: "auto", label: "Auto" };
+
 const FALLBACK_MODELS: AdapterModel[] = [
+  AUTO_MODEL,
   { id: "gpt-4o", label: "GPT-4o" },
   { id: "gpt-4.1", label: "GPT-4.1" },
   { id: "claude-sonnet-4", label: "Claude Sonnet 4" },
@@ -55,21 +58,25 @@ function parseModelsFromText(stdout: string): AdapterModel[] {
 }
 
 async function tryCommand(command: string, args: string[]): Promise<AdapterModel[]> {
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    ),
-  );
-  const proc = await runChildProcess("copilot_list_models", command, args, {
-    cwd: process.cwd(),
-    env,
-    stdin: "",
-    timeoutSec: 5,
-    graceSec: 1,
-    onLog: async () => {},
-  });
-  if ((proc.exitCode ?? 1) !== 0) return [];
-  return parseModelsFromText(proc.stdout);
+  try {
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      ),
+    );
+    const proc = await runChildProcess("copilot_list_models", command, args, {
+      cwd: process.cwd(),
+      env,
+      stdin: "",
+      timeoutSec: 5,
+      graceSec: 1,
+      onLog: async () => {},
+    });
+    if ((proc.exitCode ?? 1) !== 0) return [];
+    return parseModelsFromText(proc.stdout);
+  } catch {
+    return [];
+  }
 }
 
 export async function listCopilotModels(command = "gh"): Promise<AdapterModel[]> {

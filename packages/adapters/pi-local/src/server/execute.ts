@@ -22,6 +22,7 @@ import {
 } from "@paperclipai/adapter-utils/server-utils";
 import { isPiUnknownSessionError, parsePiJsonl } from "./parse.js";
 import { ensurePiModelConfiguredAndAvailable } from "./models.js";
+import { DEFAULT_PI_LOCAL_MODEL } from "../index.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -104,7 +105,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     "You are agent {{agent.id}} ({{agent.name}}). Continue your Paperclip work.",
   );
   const command = asString(config.command, "pi");
-  const model = asString(config.model, "").trim();
+  const requestedModel = asString(config.model, DEFAULT_PI_LOCAL_MODEL).trim();
+  const model = requestedModel.toLowerCase() === DEFAULT_PI_LOCAL_MODEL ? "" : requestedModel;
   const thinking = asString(config.thinking, "").trim();
 
   // Parse model into provider and model id
@@ -445,7 +447,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       sessionParams: resolvedSessionParams,
       sessionDisplayId: resolvedSessionId,
       provider: provider,
-      model: model,
+      model: requestedModel || DEFAULT_PI_LOCAL_MODEL,
       billingType: "unknown",
       costUsd: attempt.parsed.usage.costUsd,
       resultJson: {

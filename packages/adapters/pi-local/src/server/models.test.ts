@@ -11,15 +11,23 @@ describe("pi models", () => {
     resetPiModelsCacheForTests();
   });
 
-  it("returns an empty list when discovery command is unavailable", async () => {
+  it("returns auto fallback when discovery command is unavailable", async () => {
     process.env.PAPERCLIP_PI_COMMAND = "__paperclip_missing_pi_command__";
-    await expect(listPiModels()).resolves.toEqual([]);
+    await expect(listPiModels()).resolves.toEqual([{ id: "auto", label: "Auto" }]);
   });
 
-  it("rejects when model is missing", async () => {
+  it("accepts missing model as auto", async () => {
+    process.env.PAPERCLIP_PI_COMMAND = "__paperclip_missing_pi_command__";
     await expect(
       ensurePiModelConfiguredAndAvailable({ model: "" }),
-    ).rejects.toThrow("Pi requires `adapterConfig.model`");
+    ).resolves.toEqual([{ id: "auto", label: "Auto" }]);
+  });
+
+  it("accepts explicit auto model", async () => {
+    process.env.PAPERCLIP_PI_COMMAND = "__paperclip_missing_pi_command__";
+    await expect(
+      ensurePiModelConfiguredAndAvailable({ model: "auto" }),
+    ).resolves.toEqual([{ id: "auto", label: "Auto" }]);
   });
 
   it("rejects when discovery cannot run for configured model", async () => {

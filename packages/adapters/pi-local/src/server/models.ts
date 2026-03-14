@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import type { AdapterModel } from "@paperclipai/adapter-utils";
 import { asString, runChildProcess } from "@paperclipai/adapter-utils/server-utils";
+import { DEFAULT_PI_LOCAL_MODEL } from "../index.js";
 
 const MODELS_CACHE_TTL_MS = 60_000;
+const AUTO_MODEL: AdapterModel = { id: DEFAULT_PI_LOCAL_MODEL, label: "Auto" };
 
 function firstNonEmptyLine(text: string): string {
   return (
@@ -171,8 +173,17 @@ export async function ensurePiModelConfiguredAndAvailable(input: {
   env?: unknown;
 }): Promise<AdapterModel[]> {
   const model = asString(input.model, "").trim();
-  if (!model) {
-    throw new Error("Pi requires `adapterConfig.model` in provider/model format.");
+  if (!model || model.toLowerCase() === DEFAULT_PI_LOCAL_MODEL) {
+    try {
+      const discovered = await discoverPiModelsCached({
+        command: input.command,
+        cwd: input.cwd,
+        env: input.env,
+      });
+      return sortModels(dedupeModels([AUTO_MODEL, ...discovered]));
+    } catch {
+      return [AUTO_MODEL];
+    }
   }
 
   const models = await discoverPiModelsCached({
@@ -197,9 +208,10 @@ export async function ensurePiModelConfiguredAndAvailable(input: {
 
 export async function listPiModels(): Promise<AdapterModel[]> {
   try {
-    return await discoverPiModelsCached();
+    const discovered = await discoverPiModelsCached();
+    return sortModels(dedupeModels([AUTO_MODEL, ...discovered]));
   } catch {
-    return [];
+    return [AUTO_MODEL];
   }
 }
 

@@ -22,6 +22,7 @@ import {
   execute as geminiExecute,
   testEnvironment as geminiTestEnvironment,
   sessionCodec as geminiSessionCodec,
+  listGeminiModels,
 } from "@paperclipai/adapter-gemini-local/server";
 import { agentConfigurationDoc as geminiAgentConfigurationDoc, models as geminiModels } from "@paperclipai/adapter-gemini-local";
 import {
@@ -94,6 +95,7 @@ const geminiLocalAdapter: ServerAdapterModule = {
   testEnvironment: geminiTestEnvironment,
   sessionCodec: geminiSessionCodec,
   models: geminiModels,
+  listModels: listGeminiModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: geminiAgentConfigurationDoc,
 };
