@@ -26,3 +26,9 @@ export {
   findKnownModelPricing,
   estimateUsageCostUsd,
 } from "./pricing.js";
+export {
+  REDACTED_HOME_PATH_USER,
+  redactHomePathUserSegments,
+  redactHomePathUserSegmentsInValue,
+  redactTranscriptEntryPaths,
+} from "./log-redaction.js";
