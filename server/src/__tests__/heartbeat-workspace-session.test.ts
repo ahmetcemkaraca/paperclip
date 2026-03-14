@@ -86,6 +86,26 @@ describe("resolveRuntimeSessionParamsForWorkspace", () => {
     });
     expect(result.warning).toBeNull();
   });
+
+  it("does not migrate when workspace source is agent_config", () => {
+    const result = resolveRuntimeSessionParamsForWorkspace({
+      agentId: "agent-123",
+      previousSessionParams: {
+        sessionId: "session-1",
+        cwd: "/tmp/some-other-cwd",
+      },
+      resolvedWorkspace: buildResolvedWorkspace({
+        source: "agent_config",
+        cwd: "/tmp/agent-cwd",
+      }),
+    });
+
+    expect(result.sessionParams).toEqual({
+      sessionId: "session-1",
+      cwd: "/tmp/some-other-cwd",
+    });
+    expect(result.warning).toBeNull();
+  });
 });
 
 describe("shouldResetTaskSessionForWake", () => {

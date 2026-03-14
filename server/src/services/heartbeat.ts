@@ -161,7 +161,7 @@ interface ParsedIssueAssigneeAdapterOverrides {
 
 export type ResolvedWorkspaceForRun = {
   cwd: string;
-  source: "project_primary" | "task_session" | "agent_home";
+  source: "project_primary" | "task_session" | "agent_config" | "agent_home";
   projectId: string | null;
   workspaceId: string | null;
   repoUrl: string | null;
@@ -922,6 +922,26 @@ export function heartbeatService(db: Db) {
       }
     }
 
+    const configuredAgentCwd = readNonEmptyString(parseObject(agent.adapterConfig).cwd);
+    if (configuredAgentCwd) {
+      const configuredAgentCwdExists = await fs
+        .stat(configuredAgentCwd)
+        .then((stats) => stats.isDirectory())
+        .catch(() => false);
+      if (configuredAgentCwdExists) {
+        return {
+          cwd: configuredAgentCwd,
+          source: "agent_config" as const,
+          projectId: resolvedProjectId,
+          workspaceId: null,
+          repoUrl: null,
+          repoRef: null,
+          workspaceHints,
+          warnings: [],
+        };
+      }
+    }
+
     const cwd = resolveDefaultAgentWorkspaceDir(agent.id);
     await fs.mkdir(cwd, { recursive: true });
     const warnings: string[] = [];
@@ -932,6 +952,10 @@ export function heartbeatService(db: Db) {
     } else if (resolvedProjectId) {
       warnings.push(
         `No project workspace directory is currently available for this issue. Using fallback workspace "${cwd}" for this run.`,
+      );
+    } else if (configuredAgentCwd) {
+      warnings.push(
+        `Configured agent workspace path "${configuredAgentCwd}" is not available. Using fallback workspace "${cwd}" for this run.`,
       );
     } else {
       warnings.push(
@@ -1489,9 +1513,25 @@ export function heartbeatService(db: Db) {
       mode: executionWorkspaceMode,
       legacyUseProjectWorkspace: issueAssigneeOverrides?.useProjectWorkspace ?? null,
     });
-    const mergedConfig = issueAssigneeOverrides?.adapterConfig
+    const companySystemPromptMd = await db
+      .select({ systemPromptMd: companies.systemPromptMd })
+      .from(companies)
+      .where(eq(companies.id, agent.companyId))
+      .then((rows) => readNonEmptyString(rows[0]?.systemPromptMd) ?? null);
+    let mergedConfig = issueAssigneeOverrides?.adapterConfig
       ? { ...workspaceManagedConfig, ...issueAssigneeOverrides.adapterConfig }
       : workspaceManagedConfig;
+    if (companySystemPromptMd) {
+      const existingPromptTemplate = readNonEmptyString(mergedConfig.promptTemplate);
+      const companyPromptBlock = ["# COMPANY.md", "", companySystemPromptMd].join("\n");
+      mergedConfig = {
+        ...mergedConfig,
+        companySystemPromptMd,
+        promptTemplate: existingPromptTemplate
+          ? `${existingPromptTemplate}\n\n${companyPromptBlock}`
+          : companyPromptBlock,
+      };
+    }
     const { config: resolvedConfig, secretKeys } = await secretsSvc.resolveAdapterConfigForRuntime(
       agent.companyId,
       mergedConfig,
@@ -1524,6 +1564,16 @@ export function heartbeatService(db: Db) {
         companyId: agent.companyId,
       },
     });
+    if (companySystemPromptMd) {
+      await fs
+        .writeFile(path.join(executionWorkspace.cwd, "COMPANY.md"), companySystemPromptMd, "utf-8")
+        .catch((err) => {
+          logger.warn(
+            { err, cwd: executionWorkspace.cwd, companyId: agent.companyId },
+            "Failed to write COMPANY.md into execution workspace",
+          );
+        });
+    }
     const runtimeSessionResolution = resolveRuntimeSessionParamsForWorkspace({
       agentId: agent.id,
       previousSessionParams,

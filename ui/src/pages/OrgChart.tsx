@@ -135,6 +135,29 @@ const statusDotColor: Record<string, string> = {
   terminated: "#a3a3a3",
 };
 const defaultDotColor = "#a3a3a3";
+const ORG_FONT_SCALE_STORAGE_KEY = "paperclip.org.fontScale";
+
+function getInitialOrgFontScale(): number {
+  try {
+    const raw = localStorage.getItem(ORG_FONT_SCALE_STORAGE_KEY);
+    const parsed = raw ? Number(raw) : NaN;
+    if (Number.isFinite(parsed)) {
+      return Math.min(1.35, Math.max(0.8, parsed));
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return 1;
+}
+
+function extractAgentModel(agent: Agent | undefined): string | null {
+  if (!agent) return null;
+  const model = agent.adapterConfig?.model;
+  if (typeof model === "string" && model.trim().length > 0) {
+    return model.trim();
+  }
+  return null;
+}
 
 // ── Main component ──────────────────────────────────────────────────────
 
@@ -145,6 +168,7 @@ export function OrgChart() {
 
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
   const [showBulkMenu, setShowBulkMenu] = useState(false);
+  const [fontScale, setFontScale] = useState<number>(() => getInitialOrgFontScale());
 
   const { data: orgTree, isLoading } = useQuery({
     queryKey: queryKeys.org(selectedCompanyId!),
@@ -167,6 +191,10 @@ export function OrgChart() {
   useEffect(() => {
     setBreadcrumbs([{ label: "Org Chart" }]);
   }, [setBreadcrumbs]);
+
+  useEffect(() => {
+    localStorage.setItem(ORG_FONT_SCALE_STORAGE_KEY, String(fontScale));
+  }, [fontScale]);
 
   // Layout computation
   const layout = useMemo(() => layoutForest(orgTree ?? []), [orgTree]);
@@ -281,6 +309,26 @@ export function OrgChart() {
       onWheel={handleWheel}
     >
       {/* Zoom controls */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 rounded-md border border-border bg-background/95 px-2 py-1.5 text-xs backdrop-blur">
+        <span className="text-muted-foreground">Text</span>
+        <input
+          type="range"
+          min={0.8}
+          max={1.35}
+          step={0.05}
+          value={fontScale}
+          onChange={(e) => setFontScale(Number(e.target.value))}
+          aria-label="Org chart text size"
+        />
+        <button
+          className="rounded border border-border px-1.5 py-0.5 hover:bg-accent transition-colors"
+          onClick={() => setFontScale(1)}
+          title="Reset text size"
+        >
+          Reset
+        </button>
+      </div>
+
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
         <button
           className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
@@ -409,6 +457,7 @@ export function OrgChart() {
         {allNodes.map((node) => {
           const agent = agentMap.get(node.id);
           const dotColor = statusDotColor[node.status] ?? defaultDotColor;
+          const modelName = extractAgentModel(agent);
 
           return (
             <div
@@ -463,15 +512,20 @@ export function OrgChart() {
                 </div>
                 {/* Name + role + adapter type */}
                 <div className="flex flex-col items-start min-w-0 flex-1">
-                  <span className="text-sm font-semibold text-foreground leading-tight">
+                  <span className="font-semibold text-foreground leading-tight" style={{ fontSize: `${0.875 * fontScale}rem` }}>
                     {node.name}
                   </span>
-                  <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                  <span className="text-muted-foreground leading-tight mt-0.5" style={{ fontSize: `${0.6875 * fontScale}rem` }}>
                     {agent?.title ?? roleLabel(node.role)}
                   </span>
                   {agent && (
-                    <span className="text-[10px] text-muted-foreground/60 font-mono leading-tight mt-1">
+                    <span className="text-muted-foreground/60 font-mono leading-tight mt-1" style={{ fontSize: `${0.625 * fontScale}rem` }}>
                       {adapterLabels[agent.adapterType] ?? agent.adapterType}
+                    </span>
+                  )}
+                  {modelName && (
+                    <span className="text-muted-foreground/60 font-mono leading-tight mt-0.5 truncate max-w-full" style={{ fontSize: `${0.625 * fontScale}rem` }} title={modelName}>
+                      {modelName}
                     </span>
                   )}
                 </div>

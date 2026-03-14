@@ -13,6 +13,8 @@ export interface Company {
   requireBoardApprovalForNewAgents: boolean;
   maxConcurrentAgents: number;
   brandColor: string | null;
+  systemPromptMd?: string;
+  systemPromptUpdatedAt?: Date;
   fallbackConfig: FallbackConfig;
   createdAt: Date;
   updatedAt: Date;

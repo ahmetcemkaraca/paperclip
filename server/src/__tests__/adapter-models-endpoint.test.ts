@@ -32,6 +32,9 @@ const mockApprovalService = vi.hoisted(() => ({}));
 const mockHeartbeatService = vi.hoisted(() => ({}));
 const mockIssueApprovalService = vi.hoisted(() => ({}));
 const mockIssueService = vi.hoisted(() => ({}));
+const mockAgentNotificationService = vi.hoisted(() => ({
+  listMentions: vi.fn(),
+}));
 const mockLogActivity = vi.hoisted(() => vi.fn());
 
 vi.mock("../services/index.js", () => ({
@@ -42,6 +45,7 @@ vi.mock("../services/index.js", () => ({
   heartbeatService: () => mockHeartbeatService,
   issueApprovalService: () => mockIssueApprovalService,
   issueService: () => mockIssueService,
+  agentNotificationService: () => mockAgentNotificationService,
   logActivity: mockLogActivity,
 }));
 

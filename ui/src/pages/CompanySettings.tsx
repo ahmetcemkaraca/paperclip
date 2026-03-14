@@ -44,6 +44,7 @@ export function CompanySettings() {
   const [description, setDescription] = useState("");
   const [brandColor, setBrandColor] = useState("");
   const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(1);
+  const [systemPromptMd, setSystemPromptMd] = useState("");
 
   // Notification settings
   const [notificationsSupported] = useState(isNotificationsSupported());
@@ -61,6 +62,7 @@ export function CompanySettings() {
     setDescription(selectedCompany.description ?? "");
     setBrandColor(selectedCompany.brandColor ?? "");
     setMaxConcurrentAgents(selectedCompany.maxConcurrentAgents ?? 1);
+    setSystemPromptMd(selectedCompany.systemPromptMd ?? "");
   }, [selectedCompany]);
 
   // Check subscription status on mount
@@ -90,6 +92,9 @@ export function CompanySettings() {
       description !== (selectedCompany.description ?? "") ||
       brandColor !== (selectedCompany.brandColor ?? ""));
 
+  const systemPromptDirty =
+    !!selectedCompany && systemPromptMd !== (selectedCompany.systemPromptMd ?? "");
+
   const generalMutation = useMutation({
     mutationFn: (data: {
       name: string;
@@ -117,6 +122,15 @@ export function CompanySettings() {
         maxConcurrentAgents: Math.max(1, Math.min(100, maxAgents))
       }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    }
+  });
+
+  const systemPromptMutation = useMutation({
+    mutationFn: (content: string) =>
+      companiesApi.updateSystemPrompt(selectedCompanyId!, { content }),
+    onSuccess: (result) => {
+      setSystemPromptMd(result.content);
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
     }
   });
@@ -366,6 +380,47 @@ export function CompanySettings() {
           )}
         </div>
       )}
+
+      {/* Company System Prompt */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          COMPANY.md
+        </div>
+        <div className="space-y-3 rounded-md border border-border px-4 py-4">
+          <Field
+            label="Company system prompt"
+            hint="Global company rules for all agents. Agent-requested changes require board approval via API."
+          >
+            <textarea
+              className="h-64 w-full rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs outline-none"
+              value={systemPromptMd}
+              onChange={(e) => setSystemPromptMd(e.target.value)}
+              placeholder="# COMPANY.md\n\nCompany-wide rules..."
+            />
+          </Field>
+          {systemPromptDirty && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => systemPromptMutation.mutate(systemPromptMd)}
+                disabled={systemPromptMutation.isPending || !systemPromptMd.trim()}
+              >
+                {systemPromptMutation.isPending ? "Saving..." : "Save COMPANY.md"}
+              </Button>
+              {systemPromptMutation.isSuccess && (
+                <span className="text-xs text-muted-foreground">Saved</span>
+              )}
+              {systemPromptMutation.isError && (
+                <span className="text-xs text-destructive">
+                  {systemPromptMutation.error instanceof Error
+                    ? systemPromptMutation.error.message
+                    : "Failed to save"}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Hiring */}
       <div className="space-y-4">

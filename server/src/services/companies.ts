@@ -24,6 +24,32 @@ import {
   companyMemberships,
 } from "@paperclipai/db";
 
+export function buildDefaultCompanySystemPrompt(companyName: string) {
+  const safeName = companyName.trim().length > 0 ? companyName.trim() : "Company";
+  return [
+    "# COMPANY.md",
+    "",
+    `You are operating inside ${safeName}.`,
+    "",
+    "## Company-wide rules",
+    "- Follow AGENTS.md and project-local instructions first.",
+    "- Before starting work, check mention notifications via GET /api/agents/me/notifications and triage urgent pings.",
+    "- Keep all actions company-scoped; do not cross company boundaries.",
+    "- Prefer minimal, reversible changes and log important decisions.",
+    "- Ask for approval before risky or destructive operations.",
+    "",
+    "## Delivery standards",
+    "- Keep API/data/UI contracts consistent.",
+    "- Add validation and error handling for mutations.",
+    "- Preserve existing behavior unless a requirement explicitly changes it.",
+    "",
+    "## Notes",
+    "- This document is the company-level system prompt.",
+    "- Agent-requested updates require board approval.",
+    "",
+  ].join("\n");
+}
+
 export function companyService(db: Db) {
   const ISSUE_PREFIX_FALLBACK = "CMP";
 
@@ -79,7 +105,12 @@ export function companyService(db: Db) {
         .where(eq(companies.id, id))
         .then((rows) => rows[0] ?? null),
 
-    create: async (data: typeof companies.$inferInsert) => createCompanyWithUniquePrefix(data),
+    create: async (data: typeof companies.$inferInsert) =>
+      createCompanyWithUniquePrefix({
+        ...data,
+        systemPromptMd: data.systemPromptMd ?? buildDefaultCompanySystemPrompt(data.name),
+        systemPromptUpdatedAt: data.systemPromptUpdatedAt ?? new Date(),
+      }),
 
     update: (id: string, data: Partial<typeof companies.$inferInsert>) =>
       db

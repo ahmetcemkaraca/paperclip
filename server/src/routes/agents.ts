@@ -23,6 +23,7 @@ import {
 import { validate } from "../middleware/validate.js";
 import {
   agentService,
+  agentNotificationService,
   accessService,
   approvalService,
   heartbeatService,
@@ -64,6 +65,7 @@ export function agentRoutes(db: Db) {
   const issueApprovalsSvc = issueApprovalService(db);
   const secretsSvc = secretService(db);
   const strictSecretsMode = process.env.PAPERCLIP_SECRETS_STRICT_MODE === "true";
+  const notificationsSvc = agentNotificationService(db);
 
   function canCreateAgents(agent: { role: string; permissions: Record<string, unknown> | null | undefined }) {
     if (!agent.permissions || typeof agent.permissions !== "object") return false;
@@ -604,6 +606,21 @@ export function agentRoutes(db: Db) {
         activeRun: issue.activeRun,
       })),
     );
+  });
+
+  router.get("/agents/me/notifications", async (req, res) => {
+    if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.companyId) {
+      res.status(401).json({ error: "Agent authentication required" });
+      return;
+    }
+
+    const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : undefined;
+    const items = await notificationsSvc.listMentions({
+      companyId: req.actor.companyId,
+      agentId: req.actor.agentId,
+      limit: Number.isFinite(rawLimit) ? rawLimit : undefined,
+    });
+    res.json(items);
   });
 
   router.get("/agents/:id", async (req, res) => {

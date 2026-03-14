@@ -225,6 +225,13 @@
       "when": 1773430279573,
       "tag": "0031_volatile_lady_ursula",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1773480000000,
+      "tag": "0032_company_system_prompt",
+      "breakpoints": true
     }
   ]
 }

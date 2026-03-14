@@ -2,13 +2,18 @@ import { Router } from "express";
 import type { Db } from "@paperclipai/db";
 import {
   discussionService,
+  heartbeatService,
+  issueService,
   logActivity,
 } from "../services/index.js";
+import { logger } from "../middleware/logger.js";
 import { assertCompanyAccess, getActorInfo } from "./authz.js";
 
 export function discussionRoutes(db: Db) {
   const router = Router();
   const svc = discussionService(db);
+  const heartbeat = heartbeatService(db);
+  const issuesSvc = issueService(db);
 
   // List discussions for a company
   router.get("/companies/:companyId/discussions", async (req, res) => {
@@ -60,6 +65,29 @@ export function discussionRoutes(db: Db) {
       details: { title },
     });
 
+    const mentionSource = `${title}\n${description ?? ""}`;
+    try {
+      const mentionedIds = await issuesSvc.findMentionedAgents(companyId, mentionSource);
+      for (const mentionedId of mentionedIds) {
+        if (actor.actorType === "agent" && actor.actorId === mentionedId) continue;
+        heartbeat.wakeup(mentionedId, {
+          source: "automation",
+          triggerDetail: "system",
+          reason: "discussion_mentioned",
+          payload: { discussionId: discussion.id },
+          requestedByActorType: actor.actorType,
+          requestedByActorId: actor.actorId,
+          contextSnapshot: {
+            source: "discussion.mention",
+            discussionId: discussion.id,
+            wakeReason: "discussion_mentioned",
+          },
+        }).catch((err) => logger.warn({ err, discussionId: discussion.id, mentionedId }, "failed to wake mentioned agent"));
+      }
+    } catch (err) {
+      logger.warn({ err, discussionId: discussion.id }, "failed to resolve discussion mentions");
+    }
+
     res.status(201).json(discussion);
   });
 
@@ -97,6 +125,29 @@ export function discussionRoutes(db: Db) {
       entityId: discussionId,
       details: { commentId: comment.id },
     });
+
+    try {
+      const mentionedIds = await issuesSvc.findMentionedAgents(discussion.companyId, body);
+      for (const mentionedId of mentionedIds) {
+        if (actor.actorType === "agent" && actor.actorId === mentionedId) continue;
+        heartbeat.wakeup(mentionedId, {
+          source: "automation",
+          triggerDetail: "system",
+          reason: "discussion_comment_mentioned",
+          payload: { discussionId, commentId: comment.id },
+          requestedByActorType: actor.actorType,
+          requestedByActorId: actor.actorId,
+          contextSnapshot: {
+            source: "discussion.comment.mention",
+            discussionId,
+            commentId: comment.id,
+            wakeReason: "discussion_comment_mentioned",
+          },
+        }).catch((err) => logger.warn({ err, discussionId, mentionedId }, "failed to wake mentioned agent"));
+      }
+    } catch (err) {
+      logger.warn({ err, discussionId }, "failed to resolve discussion comment mentions");
+    }
 
     res.status(201).json(comment);
   });

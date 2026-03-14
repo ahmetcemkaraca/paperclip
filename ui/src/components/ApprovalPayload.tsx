@@ -1,13 +1,15 @@
-import { UserPlus, Lightbulb, ShieldCheck } from "lucide-react";
+import { UserPlus, Lightbulb, ShieldCheck, FileText } from "lucide-react";
 
 export const typeLabel: Record<string, string> = {
   hire_agent: "Hire Agent",
   approve_ceo_strategy: "CEO Strategy",
+  update_company_system_prompt: "Update COMPANY.md",
 };
 
 export const typeIcon: Record<string, typeof UserPlus> = {
   hire_agent: UserPlus,
   approve_ceo_strategy: Lightbulb,
+  update_company_system_prompt: FileText,
 };
 
 export const defaultTypeIcon = ShieldCheck;
@@ -71,5 +73,21 @@ export function CeoStrategyPayload({ payload }: { payload: Record<string, unknow
 
 export function ApprovalPayloadRenderer({ type, payload }: { type: string; payload: Record<string, unknown> }) {
   if (type === "hire_agent") return <HireAgentPayload payload={payload} />;
+  if (type === "update_company_system_prompt") {
+    const content = typeof payload.content === "string" ? payload.content : "";
+    const note = typeof payload.note === "string" ? payload.note : "";
+    return (
+      <div className="mt-3 space-y-2 text-sm">
+        {!!note && (
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
+            {note}
+          </div>
+        )}
+        <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-56 overflow-y-auto">
+          {content || "(empty)"}
+        </div>
+      </div>
+    );
+  }
   return <CeoStrategyPayload payload={payload} />;
 }

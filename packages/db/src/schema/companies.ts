@@ -16,6 +16,10 @@ export const companies = pgTable(
       .default(true),
     maxConcurrentAgents: integer("max_concurrent_agents").notNull().default(1),
     brandColor: text("brand_color"),
+    systemPromptMd: text("system_prompt_md").notNull().default(""),
+    systemPromptUpdatedAt: timestamp("system_prompt_updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     fallbackConfig: jsonb("fallback_config")
       .$type<{
         enabled?: boolean;

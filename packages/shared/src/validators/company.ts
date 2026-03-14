@@ -22,3 +22,16 @@ export const updateCompanySchema = createCompanySchema
   });
 
 export type UpdateCompany = z.infer<typeof updateCompanySchema>;
+
+export const updateCompanySystemPromptSchema = z.object({
+  content: z.string().min(1).max(120_000),
+});
+
+export type UpdateCompanySystemPrompt = z.infer<typeof updateCompanySystemPromptSchema>;
+
+export const proposeCompanySystemPromptSchema = z.object({
+  content: z.string().min(1).max(120_000),
+  note: z.string().max(4000).optional().nullable(),
+});
+
+export type ProposeCompanySystemPrompt = z.infer<typeof proposeCompanySystemPromptSchema>;

@@ -13,7 +13,7 @@ import { resolveHomeAwarePath } from "../home-paths.js";
 
 export interface ExecutionWorkspaceInput {
   baseCwd: string;
-  source: "project_primary" | "task_session" | "agent_home";
+  source: "project_primary" | "task_session" | "agent_config" | "agent_home";
   projectId: string | null;
   workspaceId: string | null;
   repoUrl: string | null;

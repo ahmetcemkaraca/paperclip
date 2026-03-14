@@ -5,17 +5,20 @@ import {
   companyPortabilityImportSchema,
   companyPortabilityPreviewSchema,
   createCompanySchema,
+  proposeCompanySystemPromptSchema,
+  updateCompanySystemPromptSchema,
   updateCompanySchema,
   fallbackConfigSchema,
 } from "@paperclipai/shared";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
-import { accessService, companyPortabilityService, companyService, logActivity } from "../services/index.js";
+import { accessService, approvalService, companyPortabilityService, companyService, logActivity } from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 export function companyRoutes(db: Db) {
   const router = Router();
   const svc = companyService(db);
+  const approvalsSvc = approvalService(db);
   const portability = companyPortabilityService(db);
   const access = accessService(db);
 
@@ -62,6 +65,96 @@ export function companyRoutes(db: Db) {
     }
     res.json(company);
   });
+
+  router.get("/:companyId/system-prompt", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const company = await svc.getById(companyId);
+    if (!company) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+    res.json({
+      content: company.systemPromptMd ?? "",
+      updatedAt: company.systemPromptUpdatedAt ?? company.updatedAt,
+    });
+  });
+
+  router.patch("/:companyId/system-prompt", validate(updateCompanySystemPromptSchema), async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+
+    const updated = await svc.update(companyId, {
+      systemPromptMd: req.body.content,
+      systemPromptUpdatedAt: new Date(),
+    });
+    if (!updated) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+
+    await logActivity(db, {
+      companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "company.system_prompt_updated",
+      entityType: "company",
+      entityId: companyId,
+      details: { length: req.body.content.length, source: "board_direct" },
+    });
+
+    res.json({
+      content: updated.systemPromptMd ?? "",
+      updatedAt: updated.systemPromptUpdatedAt ?? updated.updatedAt,
+    });
+  });
+
+  router.post(
+    "/:companyId/system-prompt/proposals",
+    validate(proposeCompanySystemPromptSchema),
+    async (req, res) => {
+      const companyId = req.params.companyId as string;
+      assertCompanyAccess(req, companyId);
+
+      const company = await svc.getById(companyId);
+      if (!company) {
+        res.status(404).json({ error: "Company not found" });
+        return;
+      }
+
+      const actor = getActorInfo(req);
+      const approval = await approvalsSvc.create(companyId, {
+        type: "update_company_system_prompt",
+        requestedByAgentId: actor.actorType === "agent" ? actor.actorId : null,
+        requestedByUserId: actor.actorType === "user" ? actor.actorId : null,
+        status: "pending",
+        payload: {
+          previousContent: company.systemPromptMd ?? "",
+          content: req.body.content,
+          note: req.body.note ?? null,
+        },
+        decisionNote: null,
+        decidedByUserId: null,
+        decidedAt: null,
+        updatedAt: new Date(),
+      });
+
+      await logActivity(db, {
+        companyId,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        agentId: actor.agentId,
+        runId: actor.runId,
+        action: "company.system_prompt_update_proposed",
+        entityType: "approval",
+        entityId: approval.id,
+        details: { type: approval.type },
+      });
+
+      res.status(201).json(approval);
+    },
+  );
 
   router.post("/:companyId/export", validate(companyPortabilityExportSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
