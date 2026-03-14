@@ -7,7 +7,10 @@
  * - Agent credentials (must be authenticated as an agent from the same company)
  */
 
-import type { AgentRecord } from "@paperclipai/db";
+type AutoApprovalAgent = {
+  id: string;
+  companyId: string;
+};
 
 export interface AutoApprovalConfig {
   enableAutoApprovalForInternalApi: boolean;
@@ -51,7 +54,7 @@ export interface ApprovalRequest {
 }
 
 export interface ApprovalCheckContext {
-  agent?: AgentRecord | null;
+  agent?: AutoApprovalAgent | null;
   companyId: string;
   isAuthenticated: boolean;
 }

@@ -341,8 +341,6 @@ export async function startServer(): Promise<StartedServer> {
         persistent: true,
         initdbFlags: embeddedPostgresInitdbFlags,
         postgresFlags: embeddedPostgresPostgresFlags,
-        initdbFlags: embeddedPostgresInitdbFlags,
-        postgresFlags: embeddedPostgresPostgresFlags,
         onLog: appendEmbeddedPostgresLog,
         onError: appendEmbeddedPostgresLog,
       });

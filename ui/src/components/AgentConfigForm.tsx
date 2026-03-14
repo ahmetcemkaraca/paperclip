@@ -338,7 +338,9 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     adapterType === "codex_local" ||
     adapterType === "gemini_local" ||
     adapterType === "opencode_local" ||
-    adapterType === "cursor";
+    adapterType === "cursor" ||
+    adapterType === "pi_local" ||
+    adapterType === "copilot_cli";
   const uiAdapter = useMemo(() => getUIAdapter(adapterType), [adapterType]);
 
   // Fetch adapter models for the effective adapter type
@@ -669,6 +671,10 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                         ? "agent"
                         : adapterType === "opencode_local"
                           ? "opencode"
+                          : adapterType === "pi_local"
+                            ? "pi"
+                            : adapterType === "copilot_cli"
+                              ? "gh"
                           : "claude"
                   }
                 />
