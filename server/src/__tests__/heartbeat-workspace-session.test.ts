@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import {
+  readPersistedRuntimeSessionState,
   resolveRuntimeSessionParamsForWorkspace,
   shouldResetTaskSessionForWake,
   type ResolvedWorkspaceForRun,
 } from "../services/heartbeat.ts";
+import { sessionCodec as claudeSessionCodec } from "@paperclipai/adapter-claude-local/server";
 
 function buildResolvedWorkspace(overrides: Partial<ResolvedWorkspaceForRun> = {}): ResolvedWorkspaceForRun {
   return {
@@ -169,5 +171,42 @@ describe("shouldResetTaskSessionForWake", () => {
         wakeTriggerDetail: "callback",
       }),
     ).toBe(false);
+  });
+});
+
+describe("readPersistedRuntimeSessionState", () => {
+  it("reads runtime session params and display id from runtime state json", () => {
+    const result = readPersistedRuntimeSessionState({
+      codec: claudeSessionCodec,
+      stateJson: {
+        runtimeSessionParamsJson: {
+          sessionId: "session-123",
+          cwd: "/tmp/workspace",
+        },
+        runtimeSessionDisplayId: "session-123",
+      },
+      legacySessionId: null,
+    });
+
+    expect(result).toEqual({
+      params: {
+        sessionId: "session-123",
+        cwd: "/tmp/workspace",
+      },
+      displayId: "session-123",
+    });
+  });
+
+  it("falls back to legacy session id when state json has no session metadata", () => {
+    const result = readPersistedRuntimeSessionState({
+      codec: claudeSessionCodec,
+      stateJson: {},
+      legacySessionId: "legacy-session",
+    });
+
+    expect(result).toEqual({
+      params: null,
+      displayId: "legacy-session",
+    });
   });
 });

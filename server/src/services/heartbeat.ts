@@ -504,6 +504,54 @@ function normalizeSessionParams(params: Record<string, unknown> | null | undefin
   return Object.keys(params).length > 0 ? params : null;
 }
 
+export function readPersistedRuntimeSessionState(input: {
+  codec: AdapterSessionCodec;
+  stateJson: unknown;
+  legacySessionId?: string | null;
+}) {
+  const state = parseObject(input.stateJson);
+  const rawSessionParams =
+    state.runtimeSessionParamsJson ?? state.sessionParamsJson ?? state.runtimeSessionParams ?? null;
+  const params = normalizeSessionParams(input.codec.deserialize(rawSessionParams));
+  const displayId = truncateDisplayId(
+    readNonEmptyString(state.runtimeSessionDisplayId) ??
+      readNonEmptyString(state.sessionDisplayId) ??
+      (input.codec.getDisplayId ? input.codec.getDisplayId(params) : null) ??
+      readNonEmptyString(params?.sessionId) ??
+      input.legacySessionId,
+  );
+  return {
+    params,
+    displayId,
+  };
+}
+
+function buildRuntimeStateWithSession(input: {
+  existingStateJson: unknown;
+  codec: AdapterSessionCodec;
+  nextSessionParams: Record<string, unknown> | null;
+  nextSessionDisplayId: string | null;
+}) {
+  const nextState = parseObject(input.existingStateJson);
+  const normalizedParams = normalizeSessionParams(input.codec.serialize(input.nextSessionParams));
+  const normalizedDisplayId = truncateDisplayId(
+    input.nextSessionDisplayId ??
+      (input.codec.getDisplayId ? input.codec.getDisplayId(normalizedParams) : null) ??
+      readNonEmptyString(normalizedParams?.sessionId),
+  );
+  if (normalizedParams) {
+    nextState.runtimeSessionParamsJson = normalizedParams;
+  } else {
+    delete nextState.runtimeSessionParamsJson;
+  }
+  if (normalizedDisplayId) {
+    nextState.runtimeSessionDisplayId = normalizedDisplayId;
+  } else {
+    delete nextState.runtimeSessionDisplayId;
+  }
+  return nextState;
+}
+
 function resolveNextSessionState(input: {
   codec: AdapterSessionCodec;
   adapterResult: AdapterExecutionResult;
@@ -785,8 +833,8 @@ export function heartbeatService(db: Db) {
     agent: typeof agents.$inferSelect,
     taskKey: string | null,
   ) {
+    const codec = getAdapterSessionCodec(agent.adapterType);
     if (taskKey) {
-      const codec = getAdapterSessionCodec(agent.adapterType);
       const existingTaskSession = await getTaskSession(
         agent.companyId,
         agent.id,
@@ -804,7 +852,12 @@ export function heartbeatService(db: Db) {
     }
 
     const runtimeForRun = await getRuntimeState(agent.id);
-    return runtimeForRun?.sessionId ?? null;
+    const persistedRuntimeSession = readPersistedRuntimeSessionState({
+      codec,
+      stateJson: runtimeForRun?.stateJson ?? null,
+      legacySessionId: runtimeForRun?.sessionId ?? null,
+    });
+    return persistedRuntimeSession.displayId ?? runtimeForRun?.sessionId ?? null;
   }
 
   async function resolveWorkspaceForRun(
@@ -1327,10 +1380,21 @@ export function heartbeatService(db: Db) {
     agent: typeof agents.$inferSelect,
     run: typeof heartbeatRuns.$inferSelect,
     result: AdapterExecutionResult,
-    session: { legacySessionId: string | null },
+    session: {
+      legacySessionId: string | null;
+      params?: Record<string, unknown> | null;
+      displayId?: string | null;
+    },
     normalizedUsage?: UsageTotals | null,
   ) {
-    await ensureRuntimeState(agent);
+    const runtime = await ensureRuntimeState(agent);
+    const sessionCodec = getAdapterSessionCodec(agent.adapterType);
+    const nextStateJson = buildRuntimeStateWithSession({
+      existingStateJson: runtime.stateJson,
+      codec: sessionCodec,
+      nextSessionParams: session.params ?? null,
+      nextSessionDisplayId: session.displayId ?? null,
+    });
     const usage = normalizedUsage ?? normalizeUsageTotals(result.usage);
     const inputTokens = usage?.inputTokens ?? 0;
     const outputTokens = usage?.outputTokens ?? 0;
@@ -1343,6 +1407,7 @@ export function heartbeatService(db: Db) {
       .set({
         adapterType: agent.adapterType,
         sessionId: session.legacySessionId,
+        stateJson: nextStateJson,
         lastRunId: run.id,
         lastRunStatus: run.status,
         lastError: result.errorMessage ?? null,
@@ -1491,8 +1556,13 @@ export function heartbeatService(db: Db) {
     const resetTaskSession = shouldResetTaskSessionForWake(context);
     const sessionResetReason = describeSessionResetReason(context);
     const taskSessionForRun = resetTaskSession ? null : taskSession;
+    const persistedRuntimeSession = readPersistedRuntimeSessionState({
+      codec: sessionCodec,
+      stateJson: runtime.stateJson,
+      legacySessionId: runtime.sessionId,
+    });
     const previousSessionParams = normalizeSessionParams(
-      sessionCodec.deserialize(taskSessionForRun?.sessionParamsJson ?? null),
+      sessionCodec.deserialize(taskSessionForRun?.sessionParamsJson ?? persistedRuntimeSession.params ?? null),
     );
     const config = parseObject(agent.adapterConfig);
     const executionWorkspaceMode = resolveExecutionWorkspaceMode({
@@ -1627,6 +1697,7 @@ export function heartbeatService(db: Db) {
     const runtimeSessionFallback = taskKey || resetTaskSession ? null : runtime.sessionId;
     let previousSessionDisplayId = truncateDisplayId(
       taskSessionForRun?.sessionDisplayId ??
+        persistedRuntimeSession.displayId ??
         (sessionCodec.getDisplayId ? sessionCodec.getDisplayId(runtimeSessionParams) : null) ??
         readNonEmptyString(runtimeSessionParams?.sessionId) ??
         runtimeSessionFallback,
@@ -2137,6 +2208,8 @@ export function heartbeatService(db: Db) {
       if (finalizedRun) {
         await updateRuntimeState(agent, finalizedRun, adapterResult, {
           legacySessionId: nextSessionState.legacySessionId,
+          params: nextSessionState.params,
+          displayId: nextSessionState.displayId,
         }, normalizedUsage);
         if (taskKey) {
           if (adapterResult.clearSession || (!nextSessionState.params && !nextSessionState.displayId)) {
@@ -2203,6 +2276,8 @@ export function heartbeatService(db: Db) {
           errorMessage: message,
         }, {
           legacySessionId: runtimeForAdapter.sessionId,
+          params: previousSessionParams,
+          displayId: previousSessionDisplayId,
         });
 
         if (taskKey && (previousSessionParams || previousSessionDisplayId || taskSession)) {
@@ -2898,10 +2973,19 @@ export function heartbeatService(db: Db) {
         .orderBy(desc(agentTaskSessions.updatedAt))
         .limit(1)
         .then((rows) => rows[0] ?? null);
+      const codec = getAdapterSessionCodec(agent.adapterType);
+      const persistedRuntimeSession = readPersistedRuntimeSessionState({
+        codec,
+        stateJson: ensured.stateJson,
+        legacySessionId: ensured.sessionId,
+      });
       return {
         ...ensured,
-        sessionDisplayId: latestTaskSession?.sessionDisplayId ?? ensured.sessionId,
-        sessionParamsJson: latestTaskSession?.sessionParamsJson ?? null,
+        sessionDisplayId:
+          latestTaskSession?.sessionDisplayId ??
+          persistedRuntimeSession.displayId ??
+          ensured.sessionId,
+        sessionParamsJson: latestTaskSession?.sessionParamsJson ?? persistedRuntimeSession.params ?? null,
       };
     },
 
