@@ -1,19 +1,27 @@
-import { ChangeEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { companiesApi } from "../api/companies";
 import { accessApi } from "../api/access";
-import { assetsApi } from "../api/assets";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { Settings, Check } from "lucide-react";
+import { Settings, Check, Bell } from "lucide-react";
 import { CompanyPatternIcon } from "../components/CompanyPatternIcon";
 import {
   Field,
   ToggleField,
   HintIcon
 } from "../components/agent-config-primitives";
+import {
+  isNotificationsSupported,
+  getNotificationPermission,
+  subscribeToPushNotifications,
+  unsubscribeFromPushNotifications,
+  getPushSubscription,
+  sendSubscriptionToServer,
+  fetchVapidPublicKey,
+} from "../lib/notifications";
 
 type AgentSnippetInput = {
   onboardingTextUrl: string;
@@ -35,8 +43,17 @@ export function CompanySettings() {
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
   const [brandColor, setBrandColor] = useState("");
-  const [logoUrl, setLogoUrl] = useState("");
-  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(1);
+  const [systemPromptMd, setSystemPromptMd] = useState("");
+
+  // Notification settings
+  const [notificationsSupported] = useState(isNotificationsSupported());
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    getNotificationPermission()
+  );
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
 
   // Sync local state from selected company
   useEffect(() => {
@@ -44,8 +61,25 @@ export function CompanySettings() {
     setCompanyName(selectedCompany.name);
     setDescription(selectedCompany.description ?? "");
     setBrandColor(selectedCompany.brandColor ?? "");
-    setLogoUrl(selectedCompany.logoUrl ?? "");
+    setMaxConcurrentAgents(selectedCompany.maxConcurrentAgents ?? 1);
+    setSystemPromptMd(selectedCompany.systemPromptMd ?? "");
   }, [selectedCompany]);
+
+  // Check subscription status on mount
+  useEffect(() => {
+    if (!notificationsSupported) return;
+
+    const checkSubscription = async () => {
+      try {
+        const subscription = await getPushSubscription();
+        setIsSubscribed(!!subscription);
+      } catch (error) {
+        console.error("Failed to check subscription:", error);
+      }
+    };
+
+    checkSubscription();
+  }, [notificationsSupported]);
 
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSnippet, setInviteSnippet] = useState<string | null>(null);
@@ -57,6 +91,9 @@ export function CompanySettings() {
     (companyName !== selectedCompany.name ||
       description !== (selectedCompany.description ?? "") ||
       brandColor !== (selectedCompany.brandColor ?? ""));
+
+  const systemPromptDirty =
+    !!selectedCompany && systemPromptMd !== (selectedCompany.systemPromptMd ?? "");
 
   const generalMutation = useMutation({
     mutationFn: (data: {
@@ -75,6 +112,25 @@ export function CompanySettings() {
         requireBoardApprovalForNewAgents: requireApproval
       }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    }
+  });
+
+  const concurrentAgentsMutation = useMutation({
+    mutationFn: (maxAgents: number) =>
+      companiesApi.update(selectedCompanyId!, {
+        maxConcurrentAgents: Math.max(1, Math.min(100, maxAgents))
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    }
+  });
+
+  const systemPromptMutation = useMutation({
+    mutationFn: (content: string) =>
+      companiesApi.updateSystemPrompt(selectedCompanyId!, { content }),
+    onSuccess: (result) => {
+      setSystemPromptMd(result.content);
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
     }
   });
@@ -132,42 +188,6 @@ export function CompanySettings() {
     }
   });
 
-  const syncLogoState = (nextLogoUrl: string | null) => {
-    setLogoUrl(nextLogoUrl ?? "");
-    void queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
-  };
-
-  const logoUploadMutation = useMutation({
-    mutationFn: (file: File) =>
-      assetsApi
-        .uploadCompanyLogo(selectedCompanyId!, file)
-        .then((asset) => companiesApi.update(selectedCompanyId!, { logoAssetId: asset.assetId })),
-    onSuccess: (company) => {
-      syncLogoState(company.logoUrl);
-      setLogoUploadError(null);
-    }
-  });
-
-  const clearLogoMutation = useMutation({
-    mutationFn: () => companiesApi.update(selectedCompanyId!, { logoAssetId: null }),
-    onSuccess: (company) => {
-      setLogoUploadError(null);
-      syncLogoState(company.logoUrl);
-    }
-  });
-
-  function handleLogoFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
-    event.currentTarget.value = "";
-    if (!file) return;
-    setLogoUploadError(null);
-    logoUploadMutation.mutate(file);
-  }
-
-  function handleClearLogo() {
-    clearLogoMutation.mutate();
-  }
-
   useEffect(() => {
     setInviteError(null);
     setInviteSnippet(null);
@@ -218,6 +238,35 @@ export function CompanySettings() {
     });
   }
 
+  async function handleNotificationToggle() {
+    if (!selectedCompanyId) return;
+
+    setNotificationLoading(true);
+    setNotificationError(null);
+
+    try {
+      if (isSubscribed) {
+        // Unsubscribe
+        await unsubscribeFromPushNotifications();
+        setIsSubscribed(false);
+      } else {
+        // Subscribe
+        // Fetch VAPID public key from server
+        const vapidPublicKey = await fetchVapidPublicKey();
+
+        const subscription = await subscribeToPushNotifications(vapidPublicKey);
+        await sendSubscriptionToServer(selectedCompanyId, subscription);
+        setIsSubscribed(true);
+        setNotificationPermission(Notification.permission);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update notification settings";
+      setNotificationError(message);
+    } finally {
+      setNotificationLoading(false);
+    }
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-2">
@@ -264,53 +313,11 @@ export function CompanySettings() {
             <div className="shrink-0">
               <CompanyPatternIcon
                 companyName={companyName || selectedCompany.name}
-                logoUrl={logoUrl || null}
                 brandColor={brandColor || null}
                 className="rounded-[14px]"
               />
             </div>
-            <div className="flex-1 space-y-3">
-              <Field
-                label="Logo"
-                hint="Upload a PNG, JPEG, WEBP, GIF, or SVG logo image."
-              >
-                <div className="space-y-2">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-                    onChange={handleLogoFileChange}
-                    className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none file:mr-4 file:rounded-md file:border-0 file:bg-muted file:px-2.5 file:py-1 file:text-xs"
-                  />
-                  {logoUrl && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleClearLogo}
-                        disabled={clearLogoMutation.isPending}
-                      >
-                        {clearLogoMutation.isPending ? "Removing..." : "Remove logo"}
-                      </Button>
-                    </div>
-                  )}
-                  {(logoUploadMutation.isError || logoUploadError) && (
-                    <span className="text-xs text-destructive">
-                      {logoUploadError ??
-                        (logoUploadMutation.error instanceof Error
-                          ? logoUploadMutation.error.message
-                          : "Logo upload failed")}
-                    </span>
-                  )}
-                  {clearLogoMutation.isError && (
-                    <span className="text-xs text-destructive">
-                      {clearLogoMutation.error.message}
-                    </span>
-                  )}
-                  {logoUploadMutation.isPending && (
-                    <span className="text-xs text-muted-foreground">Uploading logo...</span>
-                  )}
-                </div>
-              </Field>
+            <div className="flex-1 space-y-2">
               <Field
                 label="Brand color"
                 hint="Sets the hue for the company icon. Leave empty for auto-generated color."
@@ -367,25 +374,92 @@ export function CompanySettings() {
           {generalMutation.isError && (
             <span className="text-xs text-destructive">
               {generalMutation.error instanceof Error
-                  ? generalMutation.error.message
-                  : "Failed to save"}
+                ? generalMutation.error.message
+                : "Failed to save"}
             </span>
           )}
         </div>
       )}
+
+      {/* Company System Prompt */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          COMPANY.md
+        </div>
+        <div className="space-y-3 rounded-md border border-border px-4 py-4">
+          <Field
+            label="Company system prompt"
+            hint="Global company rules for all agents. Agent-requested changes require board approval via API."
+          >
+            <textarea
+              className="h-64 w-full rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs outline-none"
+              value={systemPromptMd}
+              onChange={(e) => setSystemPromptMd(e.target.value)}
+              placeholder="# COMPANY.md\n\nCompany-wide rules..."
+            />
+          </Field>
+          {systemPromptDirty && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => systemPromptMutation.mutate(systemPromptMd)}
+                disabled={systemPromptMutation.isPending || !systemPromptMd.trim()}
+              >
+                {systemPromptMutation.isPending ? "Saving..." : "Save COMPANY.md"}
+              </Button>
+              {systemPromptMutation.isSuccess && (
+                <span className="text-xs text-muted-foreground">Saved</span>
+              )}
+              {systemPromptMutation.isError && (
+                <span className="text-xs text-destructive">
+                  {systemPromptMutation.error instanceof Error
+                    ? systemPromptMutation.error.message
+                    : "Failed to save"}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Hiring */}
       <div className="space-y-4">
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Hiring
         </div>
-        <div className="rounded-md border border-border px-4 py-3">
+        <div className="space-y-3 rounded-md border border-border px-4 py-3">
           <ToggleField
             label="Require board approval for new hires"
             hint="New agent hires stay pending until approved by board."
             checked={!!selectedCompany.requireBoardApprovalForNewAgents}
             onChange={(v) => settingsMutation.mutate(v)}
           />
+          <div className="border-t border-border pt-3">
+            <Field
+              label="Max concurrent agents"
+              hint="Maximum number of agents that can run simultaneously across your company."
+            >
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={maxConcurrentAgents}
+                onChange={(e) => setMaxConcurrentAgents(parseInt(e.target.value, 10))}
+                onBlur={() => concurrentAgentsMutation.mutate(maxConcurrentAgents)}
+                className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
+              />
+            </Field>
+            {concurrentAgentsMutation.isSuccess && (
+              <span className="text-xs text-muted-foreground">Saved</span>
+            )}
+            {concurrentAgentsMutation.isError && (
+              <span className="text-xs text-destructive">
+                {concurrentAgentsMutation.error instanceof Error
+                  ? concurrentAgentsMutation.error.message
+                  : "Failed to save"}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -460,6 +534,56 @@ export function CompanySettings() {
           )}
         </div>
       </div>
+
+      {/* Notifications */}
+      {notificationsSupported && (
+        <div className="space-y-4">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+            <Bell className="h-4 w-4" />
+            Notifications
+          </div>
+          <div className="space-y-3 rounded-md border border-border px-4 py-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Enable browser push notifications to receive updates when the browser is closed or minimized.
+              </p>
+              {notificationPermission === "denied" && (
+                <p className="text-sm text-destructive">
+                  Notifications are blocked. Enable them in your browser settings to continue.
+                </p>
+              )}
+              {notificationError && (
+                <p className="text-sm text-destructive">{notificationError}</p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              disabled={
+                notificationLoading ||
+                notificationPermission === "denied" ||
+                !selectedCompanyId
+              }
+              onClick={handleNotificationToggle}
+            >
+              {notificationLoading ? (
+                <>
+                  {isSubscribed ? "Disabling..." : "Enabling..."}
+                </>
+              ) : isSubscribed ? (
+                "Disable Notifications"
+              ) : (
+                "Enable Notifications"
+              )}
+            </Button>
+            {isSubscribed && (
+              <div className="flex items-center gap-2 text-xs text-green-600">
+                <Check className="h-4 w-4" />
+                Push notifications enabled
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Danger Zone */}
       <div className="space-y-4">

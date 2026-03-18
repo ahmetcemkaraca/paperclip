@@ -267,6 +267,20 @@
       "when": 1773756922363,
       "tag": "0037_friendly_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1773493000000,
+      "tag": "0033_agent_notifications_read_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1773480000000,
+      "tag": "0032_company_system_prompt",
+      "breakpoints": true
     }
   ]
 }

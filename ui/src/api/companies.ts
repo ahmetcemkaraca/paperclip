@@ -29,6 +29,12 @@ export const companiesApi = {
       >
     >,
   ) => api.patch<Company>(`/companies/${companyId}`, data),
+  getSystemPrompt: (companyId: string) =>
+    api.get<{ content: string; updatedAt: string | Date }>(`/companies/${companyId}/system-prompt`),
+  updateSystemPrompt: (companyId: string, data: { content: string }) =>
+    api.patch<{ content: string; updatedAt: string | Date }>(`/companies/${companyId}/system-prompt`, data),
+  proposeSystemPrompt: (companyId: string, data: { content: string; note?: string | null }) =>
+    api.post<{ id: string; type: string; status: string }>(`/companies/${companyId}/system-prompt/proposals`, data),
   archive: (companyId: string) => api.post<Company>(`/companies/${companyId}/archive`, {}),
   remove: (companyId: string) => api.delete<{ ok: true }>(`/companies/${companyId}`),
   exportBundle: (companyId: string, data: { include?: { company?: boolean; agents?: boolean } }) =>

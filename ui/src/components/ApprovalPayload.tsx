@@ -1,16 +1,15 @@
-import { UserPlus, Lightbulb, ShieldAlert, ShieldCheck } from "lucide-react";
-import { formatCents } from "../lib/utils";
+import { UserPlus, Lightbulb, ShieldCheck, FileText } from "lucide-react";
 
 export const typeLabel: Record<string, string> = {
   hire_agent: "Hire Agent",
   approve_ceo_strategy: "CEO Strategy",
-  budget_override_required: "Budget Override",
+  update_company_system_prompt: "Update COMPANY.md",
 };
 
 export const typeIcon: Record<string, typeof UserPlus> = {
   hire_agent: UserPlus,
   approve_ceo_strategy: Lightbulb,
-  budget_override_required: ShieldAlert,
+  update_company_system_prompt: FileText,
 };
 
 export const defaultTypeIcon = ShieldCheck;
@@ -72,28 +71,23 @@ export function CeoStrategyPayload({ payload }: { payload: Record<string, unknow
   );
 }
 
-export function BudgetOverridePayload({ payload }: { payload: Record<string, unknown> }) {
-  const budgetAmount = typeof payload.budgetAmount === "number" ? payload.budgetAmount : null;
-  const observedAmount = typeof payload.observedAmount === "number" ? payload.observedAmount : null;
-  return (
-    <div className="mt-3 space-y-1.5 text-sm">
-      <PayloadField label="Scope" value={payload.scopeName ?? payload.scopeType} />
-      <PayloadField label="Window" value={payload.windowKind} />
-      <PayloadField label="Metric" value={payload.metric} />
-      {(budgetAmount !== null || observedAmount !== null) ? (
-        <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          Limit {budgetAmount !== null ? formatCents(budgetAmount) : "—"} · Observed {observedAmount !== null ? formatCents(observedAmount) : "—"}
-        </div>
-      ) : null}
-      {!!payload.guidance && (
-        <p className="text-muted-foreground">{String(payload.guidance)}</p>
-      )}
-    </div>
-  );
-}
-
 export function ApprovalPayloadRenderer({ type, payload }: { type: string; payload: Record<string, unknown> }) {
   if (type === "hire_agent") return <HireAgentPayload payload={payload} />;
-  if (type === "budget_override_required") return <BudgetOverridePayload payload={payload} />;
+  if (type === "update_company_system_prompt") {
+    const content = typeof payload.content === "string" ? payload.content : "";
+    const note = typeof payload.note === "string" ? payload.note : "";
+    return (
+      <div className="mt-3 space-y-2 text-sm">
+        {!!note && (
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
+            {note}
+          </div>
+        )}
+        <div className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap font-mono max-h-56 overflow-y-auto">
+          {content || "(empty)"}
+        </div>
+      </div>
+    );
+  }
   return <CeoStrategyPayload payload={payload} />;
 }

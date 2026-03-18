@@ -13,6 +13,7 @@ import {
   approvalService,
   heartbeatService,
   issueApprovalService,
+  issueService,
   logActivity,
   secretService,
 } from "../services/index.js";
@@ -31,6 +32,7 @@ export function approvalRoutes(db: Db) {
   const svc = approvalService(db);
   const heartbeat = heartbeatService(db);
   const issueApprovalsSvc = issueApprovalService(db);
+  const issuesSvc = issueService(db);
   const secretsSvc = secretService(db);
   const strictSecretsMode = process.env.PAPERCLIP_SECRETS_STRICT_MODE === "true";
 
@@ -337,6 +339,29 @@ export function approvalRoutes(db: Db) {
       entityId: approval.id,
       details: { commentId: comment.id },
     });
+
+    try {
+      const mentionedIds = await issuesSvc.findMentionedAgents(approval.companyId, req.body.body);
+      for (const mentionedId of mentionedIds) {
+        if (actor.actorType === "agent" && actor.actorId === mentionedId) continue;
+        heartbeat.wakeup(mentionedId, {
+          source: "automation",
+          triggerDetail: "system",
+          reason: "approval_comment_mentioned",
+          payload: { approvalId: approval.id, commentId: comment.id },
+          requestedByActorType: actor.actorType,
+          requestedByActorId: actor.actorId,
+          contextSnapshot: {
+            source: "approval.comment.mention",
+            approvalId: approval.id,
+            commentId: comment.id,
+            wakeReason: "approval_comment_mentioned",
+          },
+        }).catch((err) => logger.warn({ err, approvalId: approval.id, mentionedId }, "failed to wake mentioned agent"));
+      }
+    } catch (err) {
+      logger.warn({ err, approvalId: approval.id }, "failed to resolve approval comment mentions");
+    }
 
     res.status(201).json(comment);
   });

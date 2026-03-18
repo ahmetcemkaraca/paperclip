@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@/lib/router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { agentsApi, type OrgNode } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -135,6 +135,29 @@ const statusDotColor: Record<string, string> = {
   terminated: "#a3a3a3",
 };
 const defaultDotColor = "#a3a3a3";
+const ORG_FONT_SCALE_STORAGE_KEY = "paperclip.org.fontScale";
+
+function getInitialOrgFontScale(): number {
+  try {
+    const raw = localStorage.getItem(ORG_FONT_SCALE_STORAGE_KEY);
+    const parsed = raw ? Number(raw) : NaN;
+    if (Number.isFinite(parsed)) {
+      return Math.min(1.35, Math.max(0.8, parsed));
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return 1;
+}
+
+function extractAgentModel(agent: Agent | undefined): string | null {
+  if (!agent) return null;
+  const model = agent.adapterConfig?.model;
+  if (typeof model === "string" && model.trim().length > 0) {
+    return model.trim();
+  }
+  return null;
+}
 
 // ── Main component ──────────────────────────────────────────────────────
 
@@ -142,6 +165,10 @@ export function OrgChart() {
   const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
+
+  const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
+  const [showBulkMenu, setShowBulkMenu] = useState(false);
+  const [fontScale, setFontScale] = useState<number>(() => getInitialOrgFontScale());
 
   const { data: orgTree, isLoading } = useQuery({
     queryKey: queryKeys.org(selectedCompanyId!),
@@ -164,6 +191,10 @@ export function OrgChart() {
   useEffect(() => {
     setBreadcrumbs([{ label: "Org Chart" }]);
   }, [setBreadcrumbs]);
+
+  useEffect(() => {
+    localStorage.setItem(ORG_FONT_SCALE_STORAGE_KEY, String(fontScale));
+  }, [fontScale]);
 
   // Layout computation
   const layout = useMemo(() => layoutForest(orgTree ?? []), [orgTree]);
@@ -269,7 +300,7 @@ export function OrgChart() {
   return (
     <div
       ref={containerRef}
-      className="w-full h-[calc(100dvh-6rem)] overflow-hidden relative bg-muted/20 border border-border rounded-lg"
+      className="w-full h-[calc(100vh-4rem)] overflow-hidden relative bg-muted/20 border border-border rounded-lg"
       style={{ cursor: dragging ? "grabbing" : "grab" }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -278,6 +309,26 @@ export function OrgChart() {
       onWheel={handleWheel}
     >
       {/* Zoom controls */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 rounded-md border border-border bg-background/95 px-2 py-1.5 text-xs backdrop-blur">
+        <span className="text-muted-foreground">Text</span>
+        <input
+          type="range"
+          min={0.8}
+          max={1.35}
+          step={0.05}
+          value={fontScale}
+          onChange={(e) => setFontScale(Number(e.target.value))}
+          aria-label="Org chart text size"
+        />
+        <button
+          className="rounded border border-border px-1.5 py-0.5 hover:bg-accent transition-colors"
+          onClick={() => setFontScale(1)}
+          title="Reset text size"
+        >
+          Reset
+        </button>
+      </div>
+
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
         <button
           className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
@@ -363,6 +414,38 @@ export function OrgChart() {
         </g>
       </svg>
 
+      {/* Selection info bar */}
+      {selectedAgentIds.size > 0 && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 bg-background border border-border rounded-lg px-4 py-2 shadow-lg flex items-center gap-3">
+          <span className="text-sm font-medium">{selectedAgentIds.size} selected</span>
+          <button
+            className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+            onClick={() => setShowBulkMenu(!showBulkMenu)}
+          >
+            Bulk Edit
+          </button>
+          <button
+            className="px-2 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setSelectedAgentIds(new Set())}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* Bulk edit menu */}
+      {showBulkMenu && selectedAgentIds.size > 0 && (
+        <BulkEditMenu
+          selectedAgentIds={Array.from(selectedAgentIds)}
+          companyId={selectedCompanyId!}
+          onClose={() => setShowBulkMenu(false)}
+          onSuccess={() => {
+            setSelectedAgentIds(new Set());
+            setShowBulkMenu(false);
+          }}
+        />
+      )}
+
       {/* Card layer */}
       <div
         className="absolute inset-0"
@@ -374,19 +457,47 @@ export function OrgChart() {
         {allNodes.map((node) => {
           const agent = agentMap.get(node.id);
           const dotColor = statusDotColor[node.status] ?? defaultDotColor;
+          const modelName = extractAgentModel(agent);
 
           return (
             <div
               key={node.id}
               data-org-card
-              className="absolute bg-card border border-border rounded-lg shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
+              className={`absolute rounded-lg shadow-sm hover:shadow-md transition-[box-shadow,border-color,background-color] duration-150 cursor-pointer select-none border-2 ${
+                selectedAgentIds.has(node.id)
+                  ? "bg-primary/10 border-primary"
+                  : "bg-card border-border hover:border-foreground/20"
+              }`}
               style={{
                 left: node.x,
                 top: node.y,
                 width: CARD_W,
                 minHeight: CARD_H,
               }}
-              onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
+              onClick={(e) => {
+                if (e.ctrlKey || e.metaKey) {
+                  // Multi-select with Ctrl/Cmd
+                  const newSelected = new Set(selectedAgentIds);
+                  if (newSelected.has(node.id)) {
+                    newSelected.delete(node.id);
+                  } else {
+                    newSelected.add(node.id);
+                  }
+                  setSelectedAgentIds(newSelected);
+                } else if (selectedAgentIds.size > 0) {
+                  // If already in selection mode, toggle selection
+                  const newSelected = new Set(selectedAgentIds);
+                  if (newSelected.has(node.id)) {
+                    newSelected.delete(node.id);
+                  } else {
+                    newSelected.add(node.id);
+                  }
+                  setSelectedAgentIds(newSelected);
+                } else {
+                  // Normal click - navigate to agent
+                  navigate(agent ? agentUrl(agent) : `/agents/${node.id}`);
+                }
+              }}
             >
               <div className="flex items-center px-4 py-3 gap-3">
                 {/* Agent icon + status dot */}
@@ -401,15 +512,20 @@ export function OrgChart() {
                 </div>
                 {/* Name + role + adapter type */}
                 <div className="flex flex-col items-start min-w-0 flex-1">
-                  <span className="text-sm font-semibold text-foreground leading-tight">
+                  <span className="font-semibold text-foreground leading-tight" style={{ fontSize: `${0.875 * fontScale}rem` }}>
                     {node.name}
                   </span>
-                  <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                  <span className="text-muted-foreground leading-tight mt-0.5" style={{ fontSize: `${0.6875 * fontScale}rem` }}>
                     {agent?.title ?? roleLabel(node.role)}
                   </span>
                   {agent && (
-                    <span className="text-[10px] text-muted-foreground/60 font-mono leading-tight mt-1">
+                    <span className="text-muted-foreground/60 font-mono leading-tight mt-1" style={{ fontSize: `${0.625 * fontScale}rem` }}>
                       {adapterLabels[agent.adapterType] ?? agent.adapterType}
+                    </span>
+                  )}
+                  {modelName && (
+                    <span className="text-muted-foreground/60 font-mono leading-tight mt-0.5 truncate max-w-full" style={{ fontSize: `${0.625 * fontScale}rem` }} title={modelName}>
+                      {modelName}
                     </span>
                   )}
                 </div>
@@ -426,4 +542,154 @@ const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
 
 function roleLabel(role: string): string {
   return roleLabels[role] ?? role;
+}
+
+// ── Bulk Edit Menu Component ────────────────────────────────────────────
+
+interface BulkEditMenuProps {
+  selectedAgentIds: string[];
+  companyId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function BulkEditMenu({ selectedAgentIds, companyId, onClose, onSuccess }: BulkEditMenuProps) {
+  const [selectedAdapter, setSelectedAdapter] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+  
+  const queryClient = useQuery({
+    queryKey: queryKeys.agents.list(companyId),
+  });
+
+  const AVAILABLE_ADAPTERS = [
+    { type: "claude_local", label: "Claude Local" },
+    { type: "codex_local", label: "Codex Local" },
+    { type: "cursor_local", label: "Cursor Local" },
+    { type: "opencode_local", label: "OpenCode Local" },
+    { type: "pi_local", label: "Pi Local" },
+  ];
+
+  // Fetch models for selected adapter
+  const { data: adapterModels = [], isLoading: modelsLoading } = useQuery({
+    queryKey: selectedAdapter ? queryKeys.agents.adapterModels(companyId, selectedAdapter) : ["disabled"],
+    queryFn: () => selectedAdapter ? agentsApi.adapterModels(companyId, selectedAdapter) : Promise.resolve([]),
+    enabled: Boolean(selectedAdapter),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: {
+      agentIds: string[];
+      adapterType?: string;
+      runtimeConfig?: Record<string, unknown>;
+    }) => agentsApi.batchUpdate(companyId, data),
+    onSuccess: () => {
+      queryClient.refetch();
+      onSuccess();
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Update failed");
+    },
+  });
+
+  const handleUpdate = () => {
+    if (!selectedAdapter) {
+      setError("Please select an adapter");
+      return;
+    }
+
+    const payload: any = {
+      agentIds: selectedAgentIds,
+      adapterType: selectedAdapter,
+    };
+
+    if (selectedModel) {
+      payload.runtimeConfig = { model: selectedModel };
+    }
+
+    updateMutation.mutate(payload);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center pointer-events-auto">
+      <div className="bg-background rounded-lg border border-border p-6 w-96 shadow-lg">
+        <h2 className="text-lg font-semibold mb-4">Bulk Edit Agents</h2>
+
+        <div className="space-y-4">
+          {/* Adapter select */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Adapter</label>
+            <select
+              value={selectedAdapter}
+              onChange={(e) => {
+                setSelectedAdapter(e.target.value);
+                setSelectedModel("");
+                setError(null);
+              }}
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+            >
+              <option value="">Select adapter...</option>
+              {AVAILABLE_ADAPTERS.map((adapter) => (
+                <option key={adapter.type} value={adapter.type}>
+                  {adapter.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Model select - only show if adapter is selected */}
+          {selectedAdapter && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Model (Optional)</label>
+              {modelsLoading ? (
+                <div className="w-full px-3 py-2 border border-border rounded-md bg-muted text-sm text-muted-foreground">
+                  Loading models...
+                </div>
+              ) : adapterModels.length > 0 ? (
+                <select
+                  value={selectedModel}
+                  onChange={(e) => {
+                    setSelectedModel(e.target.value);
+                    setError(null);
+                  }}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                >
+                  <option value="">Select model (optional)...</option>
+                  {adapterModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full px-3 py-2 border border-border rounded-md bg-muted text-sm text-muted-foreground">
+                  No models available for this adapter
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Error */}
+        {error && <div className="text-sm text-destructive mt-4">{error}</div>}
+
+        {/* Actions */}
+        <div className="flex gap-2 mt-6">
+          <button
+            className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm disabled:opacity-50"
+            onClick={handleUpdate}
+            disabled={updateMutation.isPending || !selectedAdapter || modelsLoading}
+          >
+            {updateMutation.isPending ? "Updating..." : `Update ${selectedAgentIds.length} Agents`}
+          </button>
+          <button
+            className="px-4 py-2 border border-border rounded hover:bg-muted transition-colors text-sm"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

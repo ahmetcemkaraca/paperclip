@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp, boolean, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 
 export const companies = pgTable(
   "companies",
@@ -7,8 +7,6 @@ export const companies = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     status: text("status").notNull().default("active"),
-    pauseReason: text("pause_reason"),
-    pausedAt: timestamp("paused_at", { withTimezone: true }),
     issuePrefix: text("issue_prefix").notNull().default("PAP"),
     issueCounter: integer("issue_counter").notNull().default(0),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
@@ -16,7 +14,21 @@ export const companies = pgTable(
     requireBoardApprovalForNewAgents: boolean("require_board_approval_for_new_agents")
       .notNull()
       .default(true),
+    maxConcurrentAgents: integer("max_concurrent_agents").notNull().default(1),
     brandColor: text("brand_color"),
+    systemPromptMd: text("system_prompt_md").notNull().default(""),
+    systemPromptUpdatedAt: timestamp("system_prompt_updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    fallbackConfig: jsonb("fallback_config")
+      .$type<{
+        enabled?: boolean;
+        adapterId?: string;
+        adapterType?: string;
+        modelId?: string;
+        rateLimitKeywords?: string[];
+      }>()
+      .default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

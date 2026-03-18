@@ -17,23 +17,25 @@ import {
   updateAgentInstructionsPathSchema,
   wakeAgentSchema,
   updateAgentSchema,
+  batchUpdateAgentsSchema,
+  fallbackConfigSchema,
 } from "@paperclipai/shared";
 import { validate } from "../middleware/validate.js";
 import {
   agentService,
+  agentNotificationService,
   accessService,
   approvalService,
-  budgetService,
   heartbeatService,
   issueApprovalService,
   issueService,
   logActivity,
   secretService,
-  workspaceOperationService,
 } from "../services/index.js";
 import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { findServerAdapter, listAdapterModels } from "../adapters/index.js";
+import { parseObject } from "../adapters/utils.js";
 import { redactEventPayload } from "../redaction.js";
 import { redactCurrentUserValue } from "../log-redaction.js";
 import { runClaudeLogin } from "@paperclipai/adapter-claude-local/server";
@@ -59,12 +61,11 @@ export function agentRoutes(db: Db) {
   const svc = agentService(db);
   const access = accessService(db);
   const approvalsSvc = approvalService(db);
-  const budgets = budgetService(db);
   const heartbeat = heartbeatService(db);
   const issueApprovalsSvc = issueApprovalService(db);
   const secretsSvc = secretService(db);
-  const workspaceOperations = workspaceOperationService(db);
   const strictSecretsMode = process.env.PAPERCLIP_SECRETS_STRICT_MODE === "true";
+  const notificationsSvc = agentNotificationService(db);
 
   function canCreateAgents(agent: { role: string; permissions: Record<string, unknown> | null | undefined }) {
     if (!agent.permissions || typeof agent.permissions !== "object") return false;
@@ -607,6 +608,21 @@ export function agentRoutes(db: Db) {
     );
   });
 
+  router.get("/agents/me/notifications", async (req, res) => {
+    if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.companyId) {
+      res.status(401).json({ error: "Agent authentication required" });
+      return;
+    }
+
+    const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : undefined;
+    const items = await notificationsSvc.listMentions({
+      companyId: req.actor.companyId,
+      agentId: req.actor.agentId,
+      limit: Number.isFinite(rawLimit) ? rawLimit : undefined,
+    });
+    res.json(items);
+  });
+
   router.get("/agents/:id", async (req, res) => {
     const id = req.params.id as string;
     const agent = await svc.getById(id);
@@ -945,19 +961,6 @@ export function agentRoutes(db: Db) {
       details: { name: agent.name, role: agent.role },
     });
 
-    if (agent.budgetMonthlyCents > 0) {
-      await budgets.upsertPolicy(
-        companyId,
-        {
-          scopeType: "agent",
-          scopeId: agent.id,
-          amount: agent.budgetMonthlyCents,
-          windowKind: "calendar_month_utc",
-        },
-        actor.actorType === "user" ? actor.actorId : null,
-      );
-    }
-
     res.status(201).json(agent);
   });
 
@@ -1117,9 +1120,13 @@ export function agentRoutes(db: Db) {
       Object.prototype.hasOwnProperty.call(patchData, "adapterType") ||
       Object.prototype.hasOwnProperty.call(patchData, "adapterConfig");
     if (touchesAdapterConfiguration) {
-      const rawEffectiveAdapterConfig = Object.prototype.hasOwnProperty.call(patchData, "adapterConfig")
+      const existingAdapterConfig = asRecord(existing.adapterConfig) ?? {};
+      const incomingAdapterConfig = Object.prototype.hasOwnProperty.call(patchData, "adapterConfig")
         ? (asRecord(patchData.adapterConfig) ?? {})
-        : (asRecord(existing.adapterConfig) ?? {});
+        : {};
+      const rawEffectiveAdapterConfig = Object.prototype.hasOwnProperty.call(patchData, "adapterConfig")
+        ? { ...existingAdapterConfig, ...incomingAdapterConfig }
+        : existingAdapterConfig;
       const effectiveAdapterConfig = applyCreateDefaultsByAdapterType(
         requestedAdapterType,
         rawEffectiveAdapterConfig,
@@ -1167,6 +1174,58 @@ export function agentRoutes(db: Db) {
 
     res.json(agent);
   });
+
+  // Batch update agents in a company
+  router.post(
+    "/companies/:companyId/agents/batch-update",
+    validate(batchUpdateAgentsSchema),
+    async (req, res) => {
+      assertBoard(req);
+      const companyId = req.params.companyId as string;
+      assertCompanyAccess(req, companyId);
+
+      const { agentIds, adapterType, runtimeConfig } = req.body;
+      if (agentIds.length === 0) {
+        res.status(400).json({ error: "At least one agent ID required" });
+        return;
+      }
+
+      let updated = 0;
+      const actor = getActorInfo(req);
+
+      for (const agentId of agentIds) {
+        const agent = await svc.getById(agentId);
+        if (!agent || agent.companyId !== companyId) continue;
+
+        const updateData: Record<string, unknown> = {};
+        if (adapterType) updateData.adapterType = adapterType;
+        if (runtimeConfig) {
+          const currentRuntime = parseObject(agent.runtimeConfig);
+          updateData.runtimeConfig = { ...currentRuntime, ...runtimeConfig };
+        }
+
+        if (Object.keys(updateData).length === 0) continue;
+
+        const updatedAgent = await svc.update(agentId, updateData);
+        if (updatedAgent) {
+          updated++;
+          await logActivity(db, {
+            companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "agent.batch_updated",
+            entityType: "agent",
+            entityId: agentId,
+            details: updateData,
+          });
+        }
+      }
+
+      res.json({ updated });
+    },
+  );
 
   router.post("/agents/:id/pause", async (req, res) => {
     assertBoard(req);
@@ -1305,8 +1364,15 @@ export function agentRoutes(db: Db) {
     assertCompanyAccess(req, agent.companyId);
 
     if (req.actor.type === "agent" && req.actor.agentId !== id) {
-      res.status(403).json({ error: "Agent can only invoke itself" });
-      return;
+      const actorAgent = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
+      const allowed =
+        actorAgent &&
+        actorAgent.companyId === agent.companyId &&
+        Boolean(actorAgent.permissions?.canInvokeOtherAgents);
+      if (!allowed) {
+        res.status(403).json({ error: "Agent can only invoke itself" });
+        return;
+      }
     }
 
     const run = await heartbeat.wakeup(id, {
@@ -1355,8 +1421,15 @@ export function agentRoutes(db: Db) {
     assertCompanyAccess(req, agent.companyId);
 
     if (req.actor.type === "agent" && req.actor.agentId !== id) {
-      res.status(403).json({ error: "Agent can only invoke itself" });
-      return;
+      const actorAgent = req.actor.agentId ? await svc.getById(req.actor.agentId) : null;
+      const allowed =
+        actorAgent &&
+        actorAgent.companyId === agent.companyId &&
+        Boolean(actorAgent.permissions?.canInvokeOtherAgents);
+      if (!allowed) {
+        res.status(403).json({ error: "Agent can only invoke itself" });
+        return;
+      }
     }
 
     const run = await heartbeat.invoke(
@@ -1562,40 +1635,6 @@ export function agentRoutes(db: Db) {
     res.json(result);
   });
 
-  router.get("/heartbeat-runs/:runId/workspace-operations", async (req, res) => {
-    const runId = req.params.runId as string;
-    const run = await heartbeat.getRun(runId);
-    if (!run) {
-      res.status(404).json({ error: "Heartbeat run not found" });
-      return;
-    }
-    assertCompanyAccess(req, run.companyId);
-
-    const context = asRecord(run.contextSnapshot);
-    const executionWorkspaceId = asNonEmptyString(context?.executionWorkspaceId);
-    const operations = await workspaceOperations.listForRun(runId, executionWorkspaceId);
-    res.json(redactCurrentUserValue(operations));
-  });
-
-  router.get("/workspace-operations/:operationId/log", async (req, res) => {
-    const operationId = req.params.operationId as string;
-    const operation = await workspaceOperations.getById(operationId);
-    if (!operation) {
-      res.status(404).json({ error: "Workspace operation not found" });
-      return;
-    }
-    assertCompanyAccess(req, operation.companyId);
-
-    const offset = Number(req.query.offset ?? 0);
-    const limitBytes = Number(req.query.limitBytes ?? 256000);
-    const result = await workspaceOperations.readLog(operationId, {
-      offset: Number.isFinite(offset) ? offset : 0,
-      limitBytes: Number.isFinite(limitBytes) ? limitBytes : 256000,
-    });
-
-    res.json(result);
-  });
-
   router.get("/issues/:issueId/live-runs", async (req, res) => {
     const rawId = req.params.issueId as string;
     const issueSvc = issueService(db);
@@ -1675,6 +1714,46 @@ export function agentRoutes(db: Db) {
       agentName: agent.name,
       adapterType: agent.adapterType,
     });
+  });
+
+  // Fallback configuration routes for agents
+  router.get("/:agentId/fallback-config", async (req, res) => {
+    const agentId = req.params.agentId as string;
+    const agent = await svc.getById(agentId);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanReadConfigurations(req, agent.companyId);
+    res.json(agent.fallbackConfig || {});
+  });
+
+  router.put("/:agentId/fallback-config", validate(fallbackConfigSchema), async (req, res) => {
+    const agentId = req.params.agentId as string;
+    const agent = await svc.getById(agentId);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanUpdateAgent(req, agent);
+    const updated = await svc.update(agentId, { fallbackConfig: req.body });
+    if (!updated) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      action: "agent.fallback_config_updated",
+      entityType: "agent",
+      entityId: agentId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      details: req.body,
+    });
+    res.json(updated.fallbackConfig || {});
   });
 
   return router;

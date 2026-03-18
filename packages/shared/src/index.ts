@@ -253,8 +253,12 @@ export {
 export {
   createCompanySchema,
   updateCompanySchema,
+  updateCompanySystemPromptSchema,
+  proposeCompanySystemPromptSchema,
   type CreateCompany,
   type UpdateCompany,
+  type UpdateCompanySystemPrompt,
+  type ProposeCompanySystemPrompt,
   createAgentSchema,
   createAgentHireSchema,
   updateAgentSchema,
