@@ -33,6 +33,7 @@ export interface CostByAgent {
   agentName: string | null;
   agentStatus: string | null;
   costCents: number;
+  requestCount: number;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -49,6 +50,7 @@ export interface CostByProviderModel {
   billingType: BillingType;
   model: string;
   costCents: number;
+  requestCount: number;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -62,6 +64,7 @@ export interface CostByProviderModel {
 export interface CostByBiller {
   biller: string;
   costCents: number;
+  requestCount: number;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -83,6 +86,7 @@ export interface CostByAgentModel {
   billingType: BillingType;
   model: string;
   costCents: number;
+  requestCount: number;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -97,6 +101,7 @@ export interface CostWindowSpendRow {
   /** rolling window duration in hours */
   windowHours: number;
   costCents: number;
+  requestCount: number;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -107,6 +112,7 @@ export interface CostByProject {
   projectId: string | null;
   projectName: string | null;
   costCents: number;
+  requestCount: number;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;

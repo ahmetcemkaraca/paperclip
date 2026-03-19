@@ -45,6 +45,7 @@ export function CompanySettings() {
   const [brandColor, setBrandColor] = useState("");
   const [maxConcurrentAgents, setMaxConcurrentAgents] = useState(1);
   const [systemPromptMd, setSystemPromptMd] = useState("");
+  const [issueCommentOrder, setIssueCommentOrder] = useState<"newest_first" | "newest_last">("newest_last");
 
   // Notification settings
   const [notificationsSupported] = useState(isNotificationsSupported());
@@ -63,6 +64,11 @@ export function CompanySettings() {
     setBrandColor(selectedCompany.brandColor ?? "");
     setMaxConcurrentAgents(selectedCompany.maxConcurrentAgents ?? 1);
     setSystemPromptMd(selectedCompany.systemPromptMd ?? "");
+    setIssueCommentOrder(
+      (selectedCompany.fallbackConfig as Record<string, unknown> | null | undefined)?.issueCommentOrder === "newest_first"
+        ? "newest_first"
+        : "newest_last",
+    );
   }, [selectedCompany]);
 
   // Check subscription status on mount
@@ -94,6 +100,12 @@ export function CompanySettings() {
 
   const systemPromptDirty =
     !!selectedCompany && systemPromptMd !== (selectedCompany.systemPromptMd ?? "");
+  const issueCommentOrderDirty =
+    !!selectedCompany &&
+    issueCommentOrder !==
+      ((selectedCompany.fallbackConfig as Record<string, unknown> | null | undefined)?.issueCommentOrder === "newest_first"
+        ? "newest_first"
+        : "newest_last");
 
   const generalMutation = useMutation({
     mutationFn: (data: {
@@ -124,6 +136,19 @@ export function CompanySettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
     }
+  });
+
+  const issueCommentOrderMutation = useMutation({
+    mutationFn: (value: "newest_first" | "newest_last") =>
+      companiesApi.update(selectedCompanyId!, {
+        fallbackConfig: {
+          ...(selectedCompany?.fallbackConfig as Record<string, unknown> | null | undefined),
+          issueCommentOrder: value,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    },
   });
 
   const systemPromptMutation = useMutation({
@@ -537,11 +562,11 @@ export function CompanySettings() {
 
       {/* Notifications */}
       {notificationsSupported && (
-        <div className="space-y-4">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-            <Bell className="h-4 w-4" />
-            Notifications
-          </div>
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+          <Bell className="h-4 w-4" />
+          Notifications
+        </div>
           <div className="space-y-3 rounded-md border border-border px-4 py-4">
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
@@ -635,6 +660,38 @@ export function CompanySettings() {
               </span>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Issue View
+        </div>
+        <div className="space-y-3 rounded-md border border-border px-4 py-4">
+          <ToggleField
+            label="Show newest comments first"
+            hint="When enabled, issue comments are sorted newest to oldest."
+            checked={issueCommentOrder === "newest_first"}
+            onChange={(checked) => setIssueCommentOrder(checked ? "newest_first" : "newest_last")}
+          />
+          {issueCommentOrderDirty && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => issueCommentOrderMutation.mutate(issueCommentOrder)}
+                disabled={issueCommentOrderMutation.isPending}
+              >
+                {issueCommentOrderMutation.isPending ? "Saving..." : "Save issue view"}
+              </Button>
+              {issueCommentOrderMutation.isError && (
+                <span className="text-xs text-destructive">
+                  {issueCommentOrderMutation.error instanceof Error
+                    ? issueCommentOrderMutation.error.message
+                    : "Failed to save"}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -101,7 +101,7 @@ export function parseKiroAcpOutput(stdout: string, stderr = "") {
         const turnUsage = readUsage(update.usage ?? update.metrics ?? update.turnUsage);
         usage.inputTokens = Math.max(usage.inputTokens, turnUsage.inputTokens);
         usage.outputTokens = Math.max(usage.outputTokens, turnUsage.outputTokens);
-        usage.cachedInputTokens = Math.max(usage.cachedInputTokens, turnUsage.cachedInputTokens);
+        usage.cachedInputTokens = Math.max(usage.cachedInputTokens, turnUsage.cachedInputTokens ?? 0);
 
         const reportedModel =
           asString(update.model, "") ||
@@ -147,7 +147,7 @@ export function parseKiroAcpOutput(stdout: string, stderr = "") {
     const resultUsage = readUsage(result.usage);
     usage.inputTokens = Math.max(usage.inputTokens, resultUsage.inputTokens);
     usage.outputTokens = Math.max(usage.outputTokens, resultUsage.outputTokens);
-    usage.cachedInputTokens = Math.max(usage.cachedInputTokens, resultUsage.cachedInputTokens);
+    usage.cachedInputTokens = Math.max(usage.cachedInputTokens, resultUsage.cachedInputTokens ?? 0);
 
     const resultCost =
       asNumber(result.costUsd, Number.NaN) ||

@@ -139,6 +139,9 @@ export const PROJECT_STATUSES = [
 ] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
+export const PAUSE_REASONS = ["manual", "budget", "system"] as const;
+export type PauseReason = (typeof PAUSE_REASONS)[number];
+
 export const PROJECT_COLORS = [
   "#6366f1", // indigo
   "#8b5cf6", // violet
@@ -178,6 +181,73 @@ export type SecretProvider = (typeof SECRET_PROVIDERS)[number];
 
 export const STORAGE_PROVIDERS = ["local_disk", "s3"] as const;
 export type StorageProvider = (typeof STORAGE_PROVIDERS)[number];
+
+export const BILLING_TYPES = [
+  "metered_api",
+  "subscription_included",
+  "subscription_overage",
+  "credits",
+  "fixed",
+  "unknown",
+] as const;
+export type BillingType = (typeof BILLING_TYPES)[number];
+
+export const FINANCE_EVENT_KINDS = [
+  "inference_charge",
+  "platform_fee",
+  "credit_purchase",
+  "credit_refund",
+  "credit_expiry",
+  "byok_fee",
+  "gateway_overhead",
+  "log_storage_charge",
+  "logpush_charge",
+  "provisioned_capacity_charge",
+  "training_charge",
+  "custom_model_import_charge",
+  "custom_model_storage_charge",
+  "manual_adjustment",
+] as const;
+export type FinanceEventKind = (typeof FINANCE_EVENT_KINDS)[number];
+
+export const FINANCE_DIRECTIONS = ["debit", "credit"] as const;
+export type FinanceDirection = (typeof FINANCE_DIRECTIONS)[number];
+
+export const FINANCE_UNITS = [
+  "input_token",
+  "output_token",
+  "cached_input_token",
+  "request",
+  "credit_usd",
+  "credit_unit",
+  "model_unit_minute",
+  "model_unit_hour",
+  "gb_month",
+  "train_token",
+  "unknown",
+] as const;
+export type FinanceUnit = (typeof FINANCE_UNITS)[number];
+
+export const BUDGET_SCOPE_TYPES = ["company", "agent", "project"] as const;
+export type BudgetScopeType = (typeof BUDGET_SCOPE_TYPES)[number];
+
+export const BUDGET_METRICS = ["billed_cents"] as const;
+export type BudgetMetric = (typeof BUDGET_METRICS)[number];
+
+export const BUDGET_WINDOW_KINDS = ["calendar_month_utc", "lifetime"] as const;
+export type BudgetWindowKind = (typeof BUDGET_WINDOW_KINDS)[number];
+
+export const BUDGET_THRESHOLD_TYPES = ["soft", "hard"] as const;
+export type BudgetThresholdType = (typeof BUDGET_THRESHOLD_TYPES)[number];
+
+export const BUDGET_INCIDENT_STATUSES = ["open", "resolved", "dismissed"] as const;
+export type BudgetIncidentStatus = (typeof BUDGET_INCIDENT_STATUSES)[number];
+
+export const BUDGET_INCIDENT_RESOLUTION_ACTIONS = [
+  "keep_paused",
+  "raise_budget_and_resume",
+] as const;
+export type BudgetIncidentResolutionAction = (typeof BUDGET_INCIDENT_RESOLUTION_ACTIONS)[number];
 
 export const HEARTBEAT_INVOCATION_SOURCES = [
   "timer",
@@ -252,3 +322,207 @@ export const PERMISSION_KEYS = [
   "joins:approve",
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
+
+// ---------------------------------------------------------------------------
+// Plugin System — see doc/plugins/PLUGIN_SPEC.md for the full specification
+// ---------------------------------------------------------------------------
+
+/**
+ * The current version of the Plugin API contract.
+ *
+ * Increment this value whenever a breaking change is made to the plugin API
+ * so that the host can reject incompatible plugin manifests.
+ *
+ * @see PLUGIN_SPEC.md §4 — Versioning
+ */
+export const PLUGIN_API_VERSION = 1 as const;
+
+/**
+ * Lifecycle statuses for an installed plugin.
+ *
+ * State machine: installed → ready | error, ready → disabled | error | upgrade_pending | uninstalled,
+ * disabled → ready | uninstalled, error → ready | uninstalled,
+ * upgrade_pending → ready | error | uninstalled, uninstalled → installed (reinstall).
+ *
+ * @see {@link PluginStatus} — inferred union type
+ * @see PLUGIN_SPEC.md §21.3 `plugins.status`
+ */
+export const PLUGIN_STATUSES = [
+  "installed",
+  "ready",
+  "disabled",
+  "error",
+  "upgrade_pending",
+  "uninstalled",
+] as const;
+export type PluginStatus = (typeof PLUGIN_STATUSES)[number];
+
+/**
+ * Plugin classification categories. A plugin declares one or more categories
+ * in its manifest to describe its primary purpose.
+ *
+ * @see PLUGIN_SPEC.md §6.2
+ */
+export const PLUGIN_CATEGORIES = [
+  "connector",
+  "workspace",
+  "automation",
+  "ui",
+] as const;
+export type PluginCategory = (typeof PLUGIN_CATEGORIES)[number];
+
+/**
+ * Named permissions the host grants to a plugin. Plugins declare required
+ * capabilities in their manifest; the host enforces them at runtime via the
+ * plugin capability validator.
+ *
+ * Grouped into: Data Read, Data Write, Plugin State, Runtime/Integration,
+ * Agent Tools, and UI.
+ *
+ * @see PLUGIN_SPEC.md §15 — Capability Model
+ */
+export const PLUGIN_CAPABILITIES = [
+  // Data Read
+  "companies.read",
+  "projects.read",
+  "project.workspaces.read",
+  "issues.read",
+  "issue.comments.read",
+  "issue.documents.read",
+  "agents.read",
+  "goals.read",
+  "goals.create",
+  "goals.update",
+  "activity.read",
+  "costs.read",
+  // Data Write
+  "issues.create",
+  "issues.update",
+  "issue.comments.create",
+  "issue.documents.write",
+  "agents.pause",
+  "agents.resume",
+  "agents.invoke",
+  "agent.sessions.create",
+  "agent.sessions.list",
+  "agent.sessions.send",
+  "agent.sessions.close",
+  "activity.log.write",
+  "metrics.write",
+  // Plugin State
+  "plugin.state.read",
+  "plugin.state.write",
+  // Runtime / Integration
+  "events.subscribe",
+  "events.emit",
+  "jobs.schedule",
+  "webhooks.receive",
+  "http.outbound",
+  "secrets.read-ref",
+  // Agent Tools
+  "agent.tools.register",
+  // UI
+  "instance.settings.register",
+  "ui.sidebar.register",
+  "ui.page.register",
+  "ui.detailTab.register",
+  "ui.dashboardWidget.register",
+  "ui.commentAnnotation.register",
+  "ui.action.register",
+] as const;
+export type PluginCapability = (typeof PLUGIN_CAPABILITIES)[number];
+
+/**
+ * UI extension slot types. Each slot type corresponds to a mount point in the
+ * Paperclip UI where plugin components can be rendered.
+ *
+ * @see PLUGIN_SPEC.md §19 — UI Extension Model
+ */
+export const PLUGIN_UI_SLOT_TYPES = [
+  "page",
+  "detailTab",
+  "taskDetailView",
+  "dashboardWidget",
+  "sidebar",
+  "sidebarPanel",
+  "projectSidebarItem",
+  "globalToolbarButton",
+  "toolbarButton",
+  "contextMenuItem",
+  "commentAnnotation",
+  "commentContextMenuItem",
+  "settingsPage",
+] as const;
+export type PluginUiSlotType = (typeof PLUGIN_UI_SLOT_TYPES)[number];
+
+/**
+ * Launcher placement zones describe where a plugin-owned launcher can appear
+ * in the host UI. These are intentionally aligned with current slot surfaces
+ * so manifest authors can describe launch intent without coupling to a single
+ * component implementation detail.
+ */
+export const PLUGIN_LAUNCHER_PLACEMENT_ZONES = [
+  "page",
+  "detailTab",
+  "taskDetailView",
+  "dashboardWidget",
+  "sidebar",
+  "sidebarPanel",
+  "projectSidebarItem",
+  "globalToolbarButton",
+  "toolbarButton",
+  "contextMenuItem",
+  "commentAnnotation",
+  "commentContextMenuItem",
+] as const;
+export type PluginLauncherPlacementZone = (typeof PLUGIN_LAUNCHER_PLACEMENT_ZONES)[number];
+
+export const PLUGIN_LAUNCHER_ACTIONS = [
+  "execute",
+  "openSettings",
+  "openModelPicker",
+  "openCompanySettings",
+] as const;
+export type PluginLauncherAction = (typeof PLUGIN_LAUNCHER_ACTIONS)[number];
+
+export const PLUGIN_LAUNCHER_BOUNDS = ["fixed", "sticky"] as const;
+export type PluginLauncherBounds = (typeof PLUGIN_LAUNCHER_BOUNDS)[number];
+
+export const PLUGIN_LAUNCHER_RENDER_ENVIRONMENTS = [
+  "embedded",
+  "new_window",
+  "modal",
+] as const;
+export type PluginLauncherRenderEnvironment = (typeof PLUGIN_LAUNCHER_RENDER_ENVIRONMENTS)[number];
+
+export const PLUGIN_STATE_SCOPE_KINDS = ["company", "workspace", "task"] as const;
+export type PluginStateScopeKind = (typeof PLUGIN_STATE_SCOPE_KINDS)[number];
+
+export const PLUGIN_JOB_STATUSES = ["pending", "running", "completed", "failed"] as const;
+export type PluginJobStatus = (typeof PLUGIN_JOB_STATUSES)[number];
+
+export const PLUGIN_JOB_RUN_STATUSES = ["pending", "running", "succeeded", "failed"] as const;
+export type PluginJobRunStatus = (typeof PLUGIN_JOB_RUN_STATUSES)[number];
+
+export const PLUGIN_JOB_RUN_TRIGGERS = ["manual", "scheduled", "event"] as const;
+export type PluginJobRunTrigger = (typeof PLUGIN_JOB_RUN_TRIGGERS)[number];
+
+export const PLUGIN_WEBHOOK_DELIVERY_STATUSES = ["pending", "delivered", "failed"] as const;
+export type PluginWebhookDeliveryStatus = (typeof PLUGIN_WEBHOOK_DELIVERY_STATUSES)[number];
+
+export const PLUGIN_EVENT_TYPES = [
+  "plugin.installed",
+  "plugin.uninstalled",
+  "plugin.enabled",
+  "plugin.disabled",
+  "plugin.state.changed",
+] as const;
+export type PluginEventType = (typeof PLUGIN_EVENT_TYPES)[number];
+
+export const PLUGIN_BRIDGE_ERROR_CODES = [
+  "plugin_not_found",
+  "invalid_manifest",
+  "unsupported_api_version",
+  "missing_capability",
+] as const;
+export type PluginBridgeErrorCode = (typeof PLUGIN_BRIDGE_ERROR_CODES)[number];

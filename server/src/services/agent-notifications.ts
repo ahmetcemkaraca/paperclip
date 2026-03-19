@@ -51,11 +51,16 @@ function extractMentionTokens(text: string): Set<string> {
   return tokens;
 }
 
+function normalizeMentionToken(token: string) {
+  return token.trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
 function mentionsAgent(text: string | null | undefined, aliases: Set<string>) {
   if (!text || aliases.size === 0) return false;
   const tokens = extractMentionTokens(text);
   for (const token of tokens) {
-    if (aliases.has(token)) return true;
+    const normalizedToken = normalizeMentionToken(token);
+    if (aliases.has(token) || aliases.has(normalizedToken)) return true;
   }
   return false;
 }
@@ -76,8 +81,12 @@ export function agentNotificationService(db: Db) {
       const aliases = new Set<string>();
       const normalizedName = agent.name.trim().toLowerCase();
       if (normalizedName) aliases.add(normalizedName);
+      const compactName = normalizeMentionToken(agent.name);
+      if (compactName) aliases.add(compactName);
       const normalizedUrlKey = normalizeAgentUrlKey(agent.name);
       if (normalizedUrlKey) aliases.add(normalizedUrlKey.toLowerCase());
+      const compactUrlKey = normalizeMentionToken(normalizedUrlKey);
+      if (compactUrlKey) aliases.add(compactUrlKey);
 
       const [issueCommentRows, issueRows, discussionCommentRows, discussionRows, approvalCommentRows] =
         await Promise.all([

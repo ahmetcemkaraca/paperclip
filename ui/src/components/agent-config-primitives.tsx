@@ -55,6 +55,8 @@ export const help: Record<string, string> = {
   cooldownSec: "Minimum seconds between consecutive heartbeat runs.",
   maxConcurrentRuns: "Maximum number of heartbeat runs that can execute simultaneously for this agent.",
   budgetMonthlyCents: "Monthly spending limit in cents. 0 means no limit.",
+  canCreateAgents: "Allow this agent to create new agents in the same company.",
+  canInvokeOtherAgents: "Allow this agent to invoke other agents through wakeup and heartbeat APIs.",
 };
 
 export const adapterLabels: Record<string, string> = {
@@ -105,11 +107,13 @@ export function ToggleField({
   hint,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
   hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between">
@@ -118,10 +122,13 @@ export function ToggleField({
         {hint && <HintIcon text={hint} />}
       </div>
       <button
+        type="button"
         className={cn(
           "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+          disabled && "opacity-50 cursor-not-allowed",
           checked ? "bg-green-600" : "bg-muted"
         )}
+        disabled={disabled}
         onClick={() => onChange(!checked)}
       >
         <span

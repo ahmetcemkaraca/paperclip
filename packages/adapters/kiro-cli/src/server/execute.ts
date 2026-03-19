@@ -287,9 +287,9 @@ async function runKiroAcp(
           const metrics = typeof update.usage === "object" && update.usage !== null
             ? update.usage as Record<string, unknown>
             : (typeof update.metrics === "object" && update.metrics !== null ? update.metrics as Record<string, unknown> : {});
-          usage.inputTokens = Number(metrics.inputTokens ?? metrics.input_tokens ?? usage.inputTokens);
-          usage.outputTokens = Number(metrics.outputTokens ?? metrics.output_tokens ?? usage.outputTokens);
-          usage.cachedInputTokens = Number(metrics.cachedInputTokens ?? metrics.cached_input_tokens ?? usage.cachedInputTokens);
+          usage.inputTokens = Number(metrics.inputTokens ?? metrics.input_tokens ?? usage.inputTokens) || usage.inputTokens;
+          usage.outputTokens = Number(metrics.outputTokens ?? metrics.output_tokens ?? usage.outputTokens) || usage.outputTokens;
+          usage.cachedInputTokens = Number(metrics.cachedInputTokens ?? metrics.cached_input_tokens ?? usage.cachedInputTokens) || usage.cachedInputTokens;
 
           const reportedModel =
             asString(update.model, "") ||
