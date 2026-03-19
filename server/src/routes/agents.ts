@@ -979,8 +979,18 @@ export function agentRoutes(db: Db) {
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-      if (actorAgent.role !== "ceo") {
-        res.status(403).json({ error: "Only CEO can manage permissions" });
+      const isSelf = actorAgent.id === existing.id;
+      const isCeo = actorAgent.role === "ceo";
+      if (!isSelf && !isCeo) {
+        res.status(403).json({ error: "Only CEO can manage other agents" });
+        return;
+      }
+      if (
+        isSelf &&
+        Object.prototype.hasOwnProperty.call(req.body, "canCreateAgents") &&
+        !isCeo
+      ) {
+        res.status(403).json({ error: "Only CEO can manage canCreateAgents" });
         return;
       }
     }

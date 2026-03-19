@@ -7,6 +7,7 @@ import type {
 
 export interface AgentPermissions {
   canCreateAgents: boolean;
+  canInvokeOtherAgents: boolean;
 }
 
 export interface Agent {

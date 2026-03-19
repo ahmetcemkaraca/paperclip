@@ -8,7 +8,8 @@ import {
 import { envConfigSchema } from "./secret.js";
 
 export const agentPermissionsSchema = z.object({
-  canCreateAgents: z.boolean().optional().default(false),
+  canCreateAgents: z.boolean().optional(),
+  canInvokeOtherAgents: z.boolean().optional(),
 });
 
 const adapterConfigSchema = z.record(z.unknown()).superRefine((value, ctx) => {
@@ -99,7 +100,13 @@ export const testAdapterEnvironmentSchema = z.object({
 export type TestAdapterEnvironment = z.infer<typeof testAdapterEnvironmentSchema>;
 
 export const updateAgentPermissionsSchema = z.object({
-  canCreateAgents: z.boolean(),
-});
+  canCreateAgents: z.boolean().optional(),
+  canInvokeOtherAgents: z.boolean().optional(),
+}).refine(
+  (value) => value.canCreateAgents !== undefined || value.canInvokeOtherAgents !== undefined,
+  {
+    message: "At least one permission must be provided",
+  },
+);
 
 export type UpdateAgentPermissions = z.infer<typeof updateAgentPermissionsSchema>;

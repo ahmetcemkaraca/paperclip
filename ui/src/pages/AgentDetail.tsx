@@ -16,7 +16,7 @@ import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { AgentConfigForm } from "../components/AgentConfigForm";
 import { PageTabBar } from "../components/PageTabBar";
-import { adapterLabels, roleLabels } from "../components/agent-config-primitives";
+import { adapterLabels, help, roleLabels, ToggleField } from "../components/agent-config-primitives";
 import { getUIAdapter, buildTranscript } from "../adapters";
 import { StatusBadge } from "../components/StatusBadge";
 import { agentStatusDot, agentStatusDotDefault } from "../lib/status-colors";
@@ -672,8 +672,8 @@ export function AgentDetail() {
   });
 
   const updatePermissions = useMutation({
-    mutationFn: (canCreateAgents: boolean) =>
-      agentsApi.updatePermissions(agentLookupRef, { canCreateAgents }, resolvedCompanyId ?? undefined),
+    mutationFn: (patch: Partial<Agent["permissions"]>) =>
+      agentsApi.updatePermissions(agentLookupRef, patch, resolvedCompanyId ?? undefined),
     onSuccess: () => {
       setActionError(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(routeAgentRef) });
@@ -1240,7 +1240,7 @@ function AgentConfigurePage({
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
-  updatePermissions: { mutate: (canCreate: boolean) => void; isPending: boolean };
+  updatePermissions: { mutate: (patch: Partial<Agent["permissions"]>) => void; isPending: boolean };
 }) {
   const queryClient = useQueryClient();
   const [revisionsOpen, setRevisionsOpen] = useState(false);
@@ -1346,7 +1346,7 @@ function ConfigurationTab({
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
-  updatePermissions: { mutate: (canCreate: boolean) => void; isPending: boolean };
+  updatePermissions: { mutate: (patch: Partial<Agent["permissions"]>) => void; isPending: boolean };
 }) {
   const queryClient = useQueryClient();
   const [awaitingRefreshAfterSave, setAwaitingRefreshAfterSave] = useState(false);
@@ -1406,20 +1406,23 @@ function ConfigurationTab({
 
       <div>
         <h3 className="text-sm font-medium mb-3">Permissions</h3>
-        <div className="border border-border rounded-lg p-4">
-          <div className="flex items-center justify-between text-sm">
-            <span>Can create new agents</span>
-            <Button
-              variant={agent.permissions?.canCreateAgents ? "default" : "outline"}
-              size="sm"
-              className="h-7 px-2.5 text-xs"
-              onClick={() =>
-                updatePermissions.mutate(!Boolean(agent.permissions?.canCreateAgents))
-              }
-              disabled={updatePermissions.isPending}
-            >
-              {agent.permissions?.canCreateAgents ? "Enabled" : "Disabled"}
-            </Button>
+        <div className="border border-border rounded-lg p-4 space-y-3">
+          <ToggleField
+            label="Can create new agents"
+            hint={help.canCreateAgents}
+            checked={Boolean(agent.permissions?.canCreateAgents)}
+            disabled={updatePermissions.isPending}
+            onChange={(checked) => updatePermissions.mutate({ canCreateAgents: checked })}
+          />
+          <ToggleField
+            label="Can invoke other agents"
+            hint={help.canInvokeOtherAgents}
+            checked={Boolean(agent.permissions?.canInvokeOtherAgents)}
+            disabled={updatePermissions.isPending}
+            onChange={(checked) => updatePermissions.mutate({ canInvokeOtherAgents: checked })}
+          />
+          <div className="text-xs text-muted-foreground leading-5">
+            This controls whether the agent can wake or invoke peers through the agent APIs.
           </div>
         </div>
       </div>

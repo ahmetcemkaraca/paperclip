@@ -193,7 +193,7 @@ function ActorIdentity({ evt, agentMap }: { evt: ActivityEvent; agentMap: Map<st
 
 export function IssueDetail() {
   const { issueId } = useParams<{ issueId: string }>();
-  const { selectedCompanyId } = useCompany();
+  const { selectedCompanyId, selectedCompany } = useCompany();
   const { openPanel, closePanel, panelVisible, setPanelVisible } = usePanel();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
@@ -296,6 +296,10 @@ export function IssueDetail() {
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
   });
+  const issueCommentOrder =
+    (selectedCompany?.fallbackConfig as Record<string, unknown> | null | undefined)?.issueCommentOrder === "newest_first"
+      ? "newest_first"
+      : "newest_last";
 
   const { data: projects } = useQuery({
     queryKey: queryKeys.projects.list(selectedCompanyId!),
@@ -1004,6 +1008,7 @@ export function IssueDetail() {
             reassignOptions={commentReassignOptions}
             currentAssigneeValue={currentAssigneeValue}
             mentions={mentionOptions}
+            sortOrder={issueCommentOrder === "newest_first" ? "desc" : "asc"}
             onAdd={async (body, reopen, reassignment) => {
               if (reassignment) {
                 await addCommentAndReassign.mutateAsync({ body, reopen, reassignment });

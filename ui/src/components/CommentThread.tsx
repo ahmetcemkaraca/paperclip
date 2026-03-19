@@ -47,6 +47,7 @@ interface CommentThreadProps {
   reassignOptions?: InlineEntityOption[];
   currentAssigneeValue?: string;
   mentions?: MentionOption[];
+  sortOrder?: "asc" | "desc";
 }
 
 const CLOSED_STATUSES = new Set(["done", "cancelled"]);
@@ -270,6 +271,7 @@ export function CommentThread({
   reassignOptions = [],
   currentAssigneeValue = "",
   mentions: providedMentions,
+  sortOrder = "asc",
 }: CommentThreadProps) {
   const [body, setBody] = useState("");
   const [reopen, setReopen] = useState(true);
@@ -298,12 +300,13 @@ export function CommentThread({
       createdAtMs: new Date(run.startedAt ?? run.createdAt).getTime(),
       run,
     }));
-    return [...commentItems, ...runItems].sort((a, b) => {
+    const sorted = [...commentItems, ...runItems].sort((a, b) => {
       if (a.createdAtMs !== b.createdAtMs) return a.createdAtMs - b.createdAtMs;
       if (a.kind === b.kind) return a.id.localeCompare(b.id);
       return a.kind === "comment" ? -1 : 1;
     });
-  }, [comments, linkedRuns]);
+    return sortOrder === "desc" ? sorted.reverse() : sorted;
+  }, [comments, linkedRuns, sortOrder]);
 
   // Build mention options from agent map (exclude terminated agents)
   const mentions = useMemo<MentionOption[]>(() => {

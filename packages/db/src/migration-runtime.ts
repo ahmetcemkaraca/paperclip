@@ -144,47 +144,64 @@ async function ensureEmbeddedPostgresConnection(
     };
   }
 
-  const instance = new EmbeddedPostgres({
-    databaseDir: dataDir,
-    user: "paperclip",
-    password: "paperclip",
-    port: selectedPort,
-    persistent: true,
-    initdbFlags: ["--encoding=UTF8", "--locale=C"],
-    onLog: () => {},
-    onError: () => {},
-  });
+  const maxAttempts = 5;
+  let lastError: unknown = null;
 
-  if (!existsSync(path.resolve(dataDir, "PG_VERSION"))) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const attemptPort = selectedPort + attempt;
+    const port = await findAvailablePort(attemptPort);
+
+    const instance = new EmbeddedPostgres({
+      databaseDir: dataDir,
+      user: "paperclip",
+      password: "paperclip",
+      port,
+      persistent: true,
+      initdbFlags: ["--encoding=UTF8", "--locale=C"],
+      onLog: () => {},
+      onError: () => {},
+    });
+
+    if (!existsSync(path.resolve(dataDir, "PG_VERSION"))) {
+      try {
+        await instance.initialise();
+      } catch (error) {
+        lastError = error;
+        // Try again on a different port.
+        continue;
+      }
+    }
+
+    if (existsSync(postmasterPidFile)) {
+      rmSync(postmasterPidFile, { force: true });
+    }
+
     try {
-      await instance.initialise();
+      await instance.start();
+
+      const adminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${port}/postgres`;
+      await ensurePostgresDatabase(adminConnectionString, "paperclip");
+
+      return {
+        connectionString: `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`,
+        source: `embedded-postgres@${port}`,
+        stop: async () => {
+          await instance.stop();
+        },
+      };
     } catch (error) {
-      throw toError(
-        error,
-        `Failed to initialize embedded PostgreSQL cluster in ${dataDir} on port ${selectedPort}`,
-      );
+      lastError = error;
+      // If the port is in use or startup fails, try the next port.
+      continue;
     }
   }
-  if (existsSync(postmasterPidFile)) {
-    rmSync(postmasterPidFile, { force: true });
-  }
-  try {
-    await instance.start();
-  } catch (error) {
-    throw toError(error, `Failed to start embedded PostgreSQL on port ${selectedPort}`);
-  }
 
-  const adminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${selectedPort}/postgres`;
-  await ensurePostgresDatabase(adminConnectionString, "paperclip");
-
-  return {
-    connectionString: `postgres://paperclip:paperclip@127.0.0.1:${selectedPort}/paperclip`,
-    source: `embedded-postgres@${selectedPort}`,
-    stop: async () => {
-      await instance.stop();
-    },
-  };
+  throw toError(
+    lastError,
+    `Failed to start embedded PostgreSQL on a free port (starting at ${preferredPort}, searched ${maxAttempts} ports).`,
+  );
 }
+
 
 export async function resolveMigrationConnection(): Promise<MigrationConnection> {
   const target = resolveDatabaseTarget();

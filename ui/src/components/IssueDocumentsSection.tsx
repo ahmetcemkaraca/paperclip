@@ -38,6 +38,7 @@ type DocumentConflictState = {
 const DOCUMENT_AUTOSAVE_DEBOUNCE_MS = 900;
 const DOCUMENT_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 const getFoldedDocumentsStorageKey = (issueId: string) => `paperclip:issue-document-folds:${issueId}`;
+const getDocumentsFoldedMarkerKey = (issueId: string) => `paperclip:issue-document-folds-init:${issueId}`;
 
 function loadFoldedDocumentKeys(issueId: string) {
   if (typeof window === "undefined") return [];
@@ -48,6 +49,24 @@ function loadFoldedDocumentKeys(issueId: string) {
     return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
   } catch {
     return [];
+  }
+}
+
+function hasSavedFoldState(issueId: string) {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(getDocumentsFoldedMarkerKey(issueId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markSavedFoldState(issueId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(getDocumentsFoldedMarkerKey(issueId), "1");
+  } catch {
+    // Ignore localStorage failures.
   }
 }
 
@@ -419,6 +438,13 @@ export function IssueDocumentsSection({
   }, [issue.id]);
 
   useEffect(() => {
+    if (!documents || documents.length === 0) return;
+    if (hasSavedFoldState(issue.id)) return;
+    setFoldedDocumentKeys(documents.map((doc) => doc.key));
+    markSavedFoldState(issue.id);
+  }, [documents, issue.id]);
+
+  useEffect(() => {
     hasScrolledToHashRef.current = false;
   }, [issue.id, location.hash]);
 
@@ -435,6 +461,9 @@ export function IssueDocumentsSection({
 
   useEffect(() => {
     saveFoldedDocumentKeys(issue.id, foldedDocumentKeys);
+    if (foldedDocumentKeys.length > 0) {
+      markSavedFoldState(issue.id);
+    }
   }, [foldedDocumentKeys, issue.id]);
 
   useEffect(() => {
