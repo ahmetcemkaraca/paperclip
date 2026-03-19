@@ -65,6 +65,15 @@ import {
   agentConfigurationDoc as hermesAgentConfigurationDoc,
   models as hermesModels,
 } from "hermes-paperclip-adapter";
+import {
+  execute as kiroExecute,
+  testEnvironment as kiroTestEnvironment,
+  sessionCodec as kiroSessionCodec,
+} from "@paperclipai/adapter-kiro-cli/server";
+import {
+  agentConfigurationDoc as kiroAgentConfigurationDoc,
+  models as kiroModels,
+} from "@paperclipai/adapter-kiro-cli";
 import { processAdapter } from "./process/index.js";
 import { httpAdapter } from "./http/index.js";
 
@@ -161,6 +170,17 @@ const hermesLocalAdapter: ServerAdapterModule = {
   agentConfigurationDoc: hermesAgentConfigurationDoc,
 };
 
+const kiroCliAdapter: ServerAdapterModule = {
+  type: "kiro_cli",
+  execute: kiroExecute,
+  testEnvironment: kiroTestEnvironment,
+  sessionCodec: kiroSessionCodec,
+  sessionManagement: getAdapterSessionManagement("kiro_cli") ?? undefined,
+  models: kiroModels,
+  supportsLocalAgentJwt: true,
+  agentConfigurationDoc: kiroAgentConfigurationDoc,
+};
+
 const adaptersByType = new Map<string, ServerAdapterModule>(
   [
     claudeLocalAdapter,
@@ -169,6 +189,7 @@ const adaptersByType = new Map<string, ServerAdapterModule>(
     piLocalAdapter,
     cursorLocalAdapter,
     geminiLocalAdapter,
+    kiroCliAdapter,
     openclawGatewayAdapter,
     hermesLocalAdapter,
     processAdapter,
