@@ -20,15 +20,17 @@ export function BillerSpendCard({
   providerRows,
 }: BillerSpendCardProps) {
   const providerBreakdown = useMemo(() => {
-    const map = new Map<string, { provider: string; costCents: number; inputTokens: number; outputTokens: number }>();
+    const map = new Map<string, { provider: string; costCents: number; requestCount: number; inputTokens: number; outputTokens: number }>();
     for (const entry of providerRows) {
       const current = map.get(entry.provider) ?? {
         provider: entry.provider,
         costCents: 0,
+        requestCount: 0,
         inputTokens: 0,
         outputTokens: 0,
       };
       current.costCents += entry.costCents;
+      current.requestCount += entry.requestCount;
       current.inputTokens += entry.inputTokens + entry.cachedInputTokens;
       current.outputTokens += entry.outputTokens;
       map.set(entry.provider, current);
@@ -94,6 +96,8 @@ export function BillerSpendCard({
             ? `${row.subscriptionRunCount} subscription run${row.subscriptionRunCount === 1 ? "" : "s"}`
             : "0 subscription runs"}
           {" · "}
+          {row.requestCount} request{row.requestCount === 1 ? "" : "s"}
+          {" · "}
           {formatCents(weekSpendCents)} this week
         </div>
 
@@ -129,9 +133,7 @@ export function BillerSpendCard({
                     <span className="text-muted-foreground">{providerDisplayName(entry.provider)}</span>
                     <div className="text-right tabular-nums">
                       <div className="font-medium">{formatCents(entry.costCents)}</div>
-                      <div className="text-muted-foreground">
-                        {formatTokens(entry.inputTokens + entry.outputTokens)} tok
-                      </div>
+                      <div className="text-muted-foreground">{formatTokens(entry.inputTokens + entry.outputTokens)} tok · {entry.requestCount} req</div>
                     </div>
                   </div>
                 ))}

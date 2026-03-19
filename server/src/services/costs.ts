@@ -11,6 +11,7 @@ export interface CostDateRange {
 
 const METERED_BILLING_TYPE = "metered_api";
 const SUBSCRIPTION_BILLING_TYPES = ["subscription_included", "subscription_overage"] as const;
+const requestCountExpr = sql<number>`count(distinct case when (${costEvents.inputTokens} + ${costEvents.cachedInputTokens} + ${costEvents.outputTokens}) > 0 then ${costEvents.heartbeatRunId} end)::int`;
 
 function currentUtcMonthWindow(now = new Date()) {
   const year = now.getUTCFullYear();
@@ -141,6 +142,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
           agentName: agents.name,
           agentStatus: agents.status,
           costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          requestCount: requestCountExpr,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           cachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
@@ -174,6 +176,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
           billingType: costEvents.billingType,
           model: costEvents.model,
           costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          requestCount: requestCountExpr,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           cachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
@@ -203,6 +206,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         .select({
           biller: costEvents.biller,
           costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          requestCount: requestCountExpr,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           cachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
@@ -245,6 +249,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
               provider: costEvents.provider,
               biller: sql<string>`case when count(distinct ${costEvents.biller}) = 1 then min(${costEvents.biller}) else 'mixed' end`,
               costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+              requestCount: requestCountExpr,
               inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
               cachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
               outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
@@ -265,6 +270,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
             window: label as string,
             windowHours: hours,
             costCents: row.costCents,
+            requestCount: row.requestCount,
             inputTokens: row.inputTokens,
             cachedInputTokens: row.cachedInputTokens,
             outputTokens: row.outputTokens,
@@ -293,6 +299,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
           billingType: costEvents.billingType,
           model: costEvents.model,
           costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          requestCount: requestCountExpr,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           cachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
@@ -349,6 +356,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
           projectId: effectiveProjectId,
           projectName: projects.name,
           costCents: costCentsExpr,
+          requestCount: requestCountExpr,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           cachedInputTokens: sql<number>`coalesce(sum(${costEvents.cachedInputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
