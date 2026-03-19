@@ -1,16 +1,18 @@
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import type { AdapterModel } from "./types.js";
-import { models as codexFallbackModels } from "@paperclipai/adapter-codex-local";
-import { readConfigFile } from "../config-file.js";
 
-const OPENAI_MODELS_ENDPOINT = "https://api.openai.com/v1/models";
-const OPENAI_MODELS_TIMEOUT_MS = 5000;
-const OPENAI_MODELS_CACHE_TTL_MS = 60_000;
+const CODEX_MODELS_CACHE_TTL_MS = 60_000;
 
-let cached: { keyFingerprint: string; expiresAt: number; models: AdapterModel[] } | null = null;
+type CodexModelCacheEntry = {
+  slug?: unknown;
+  display_name?: unknown;
+  visibility?: unknown;
+};
 
-function fingerprint(apiKey: string): string {
-  return `${apiKey.length}:${apiKey.slice(-6)}`;
-}
+let cached: { cachePath: string; expiresAt: number; models: AdapterModel[] } | null = null;
+let codexModelsCachePathOverride: string | null = null;
 
 function dedupeModels(models: AdapterModel[]): AdapterModel[] {
   const seen = new Set<string>();
@@ -24,81 +26,88 @@ function dedupeModels(models: AdapterModel[]): AdapterModel[] {
   return deduped;
 }
 
-function mergedWithFallback(models: AdapterModel[]): AdapterModel[] {
-  return dedupeModels([
-    ...models,
-    ...codexFallbackModels,
-  ]).sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true, sensitivity: "base" }));
+function resolveCodexModelsCachePath(): string {
+  if (codexModelsCachePathOverride) return codexModelsCachePathOverride;
+
+  const envOverride = process.env.PAPERCLIP_CODEX_MODELS_CACHE_PATH?.trim();
+  if (envOverride) return envOverride;
+
+  const codexHome = process.env.CODEX_HOME?.trim();
+  if (codexHome) {
+    return path.join(codexHome, "models_cache.json");
+  }
+
+  return path.join(os.homedir(), ".codex", "models_cache.json");
 }
 
-function resolveOpenAiApiKey(): string | null {
-  const envKey = process.env.OPENAI_API_KEY?.trim();
-  if (envKey) return envKey;
-
-  const config = readConfigFile();
-  if (config?.llm?.provider !== "openai") return null;
-  const configKey = config.llm.apiKey?.trim();
-  return configKey && configKey.length > 0 ? configKey : null;
-}
-
-async function fetchOpenAiModels(apiKey: string): Promise<AdapterModel[]> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), OPENAI_MODELS_TIMEOUT_MS);
+export function parseCodexModelsCache(source: string): AdapterModel[] {
+  let parsed: unknown;
   try {
-    const response = await fetch(OPENAI_MODELS_ENDPOINT, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-      signal: controller.signal,
-    });
-    if (!response.ok) return [];
-
-    const payload = (await response.json()) as { data?: unknown };
-    const data = Array.isArray(payload.data) ? payload.data : [];
-    const models: AdapterModel[] = [];
-    for (const item of data) {
-      if (typeof item !== "object" || item === null) continue;
-      const id = (item as { id?: unknown }).id;
-      if (typeof id !== "string" || id.trim().length === 0) continue;
-      models.push({ id, label: id });
-    }
-    return dedupeModels(models);
+    parsed = JSON.parse(source);
   } catch {
     return [];
-  } finally {
-    clearTimeout(timeout);
   }
+
+  const entries = Array.isArray((parsed as { models?: unknown }).models)
+    ? ((parsed as { models: unknown[] }).models as CodexModelCacheEntry[])
+    : [];
+
+  const models: AdapterModel[] = [];
+  for (const entry of entries) {
+    const id = typeof entry.slug === "string" ? entry.slug.trim() : "";
+    const label = typeof entry.display_name === "string" ? entry.display_name.trim() : id;
+    const visibility = typeof entry.visibility === "string" ? entry.visibility.trim() : "";
+    if (!id) continue;
+    if (visibility && visibility !== "list") continue;
+    models.push({ id, label: label || id });
+  }
+
+  return dedupeModels(models);
+}
+
+function loadCodexModelsFromCacheFile(): { cachePath: string; models: AdapterModel[] } {
+  const cachePath = resolveCodexModelsCachePath();
+  let source: string;
+  try {
+    source = fs.readFileSync(cachePath, "utf8");
+  } catch {
+    return { cachePath, models: [] };
+  }
+
+  return {
+    cachePath,
+    models: parseCodexModelsCache(source),
+  };
 }
 
 export async function listCodexModels(): Promise<AdapterModel[]> {
-  const apiKey = resolveOpenAiApiKey();
-  const fallback = dedupeModels(codexFallbackModels);
-  if (!apiKey) return fallback;
-
   const now = Date.now();
-  const keyFingerprint = fingerprint(apiKey);
-  if (cached && cached.keyFingerprint === keyFingerprint && cached.expiresAt > now) {
+  const cachePath = resolveCodexModelsCachePath();
+  if (cached && cached.cachePath === cachePath && cached.expiresAt > now) {
     return cached.models;
   }
 
-  const fetched = await fetchOpenAiModels(apiKey);
-  if (fetched.length > 0) {
-    const merged = mergedWithFallback(fetched);
+  const loaded = loadCodexModelsFromCacheFile();
+  if (loaded.models.length > 0) {
     cached = {
-      keyFingerprint,
-      expiresAt: now + OPENAI_MODELS_CACHE_TTL_MS,
-      models: merged,
+      cachePath: loaded.cachePath,
+      expiresAt: now + CODEX_MODELS_CACHE_TTL_MS,
+      models: loaded.models,
     };
-    return merged;
+    return loaded.models;
   }
 
-  if (cached && cached.keyFingerprint === keyFingerprint && cached.models.length > 0) {
+  if (cached && cached.cachePath === cachePath && cached.models.length > 0) {
     return cached.models;
   }
 
-  return fallback;
+  return [];
 }
 
 export function resetCodexModelsCacheForTests() {
   cached = null;
+}
+
+export function setCodexModelsCachePathForTests(filePath: string | null) {
+  codexModelsCachePathOverride = filePath;
 }

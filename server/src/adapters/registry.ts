@@ -44,7 +44,9 @@ import {
   models as openclawGatewayModels,
 } from "@paperclipai/adapter-openclaw-gateway";
 import { listCodexModels } from "./codex-models.js";
+import { listClaudeModels } from "./claude-models.js";
 import { listCursorModels } from "./cursor-models.js";
+import { listGeminiModels } from "./gemini-models.js";
 import {
   execute as piExecute,
   testEnvironment as piTestEnvironment,
@@ -82,6 +84,7 @@ const claudeLocalAdapter: ServerAdapterModule = {
   sessionCodec: claudeSessionCodec,
   sessionManagement: getAdapterSessionManagement("claude_local") ?? undefined,
   models: claudeModels,
+  listModels: listClaudeModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: claudeAgentConfigurationDoc,
   getQuotaWindows: claudeGetQuotaWindows,
@@ -119,6 +122,7 @@ const geminiLocalAdapter: ServerAdapterModule = {
   sessionCodec: geminiSessionCodec,
   sessionManagement: getAdapterSessionManagement("gemini_local") ?? undefined,
   models: geminiModels,
+  listModels: listGeminiModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: geminiAgentConfigurationDoc,
 };
