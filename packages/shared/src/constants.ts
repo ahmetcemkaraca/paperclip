@@ -27,6 +27,7 @@ export const AGENT_ADAPTER_TYPES = [
   "claude_local",
   "codex_local",
   "gemini_local",
+  "kiro_cli",
   "opencode_local",
   "pi_local",
   "cursor",
