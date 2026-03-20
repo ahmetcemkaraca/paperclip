@@ -60,6 +60,14 @@ export const updateAgentSchema = createAgentSchema
 
 export type UpdateAgent = z.infer<typeof updateAgentSchema>;
 
+export const batchUpdateAgentsSchema = z.object({
+  agentIds: z.array(z.string().uuid()).default([]),
+  adapterType: z.enum(AGENT_ADAPTER_TYPES).optional(),
+  runtimeConfig: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type BatchUpdateAgents = z.infer<typeof batchUpdateAgentsSchema>;
+
 export const updateAgentInstructionsPathSchema = z.object({
   path: z.string().trim().min(1).nullable(),
   adapterConfigKey: z.string().trim().min(1).optional(),

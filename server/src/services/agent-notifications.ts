@@ -4,8 +4,6 @@ import {
   agents,
   approvalComments,
   approvals,
-  discussionComments,
-  discussions,
   issueComments,
   issues,
 } from "@paperclipai/db";
@@ -14,8 +12,6 @@ import { normalizeAgentUrlKey } from "@paperclipai/shared";
 export type AgentMentionNotificationType =
   | "issue_comment"
   | "issue_text"
-  | "discussion_comment"
-  | "discussion_text"
   | "approval_comment";
 
 export interface AgentMentionNotification {
@@ -88,7 +84,7 @@ export function agentNotificationService(db: Db) {
       const compactUrlKey = normalizeMentionToken(normalizedUrlKey);
       if (compactUrlKey) aliases.add(compactUrlKey);
 
-      const [issueCommentRows, issueRows, discussionCommentRows, discussionRows, approvalCommentRows] =
+      const [issueCommentRows, issueRows, approvalCommentRows] =
         await Promise.all([
           db
             .select({
@@ -119,36 +115,6 @@ export function agentNotificationService(db: Db) {
             .from(issues)
             .where(eq(issues.companyId, input.companyId))
             .orderBy(desc(issues.createdAt))
-            .limit(scanLimit),
-          db
-            .select({
-              id: discussionComments.id,
-              companyId: discussionComments.companyId,
-              discussionId: discussionComments.discussionId,
-              body: discussionComments.body,
-              createdAt: discussionComments.createdAt,
-              authorAgentId: discussionComments.authorAgentId,
-              authorUserId: discussionComments.authorUserId,
-              discussionTitle: discussions.title,
-            })
-            .from(discussionComments)
-            .innerJoin(discussions, eq(discussions.id, discussionComments.discussionId))
-            .where(eq(discussionComments.companyId, input.companyId))
-            .orderBy(desc(discussionComments.createdAt))
-            .limit(scanLimit),
-          db
-            .select({
-              id: discussions.id,
-              companyId: discussions.companyId,
-              title: discussions.title,
-              description: discussions.description,
-              createdAt: discussions.createdAt,
-              authorAgentId: discussions.authorAgentId,
-              authorUserId: discussions.authorUserId,
-            })
-            .from(discussions)
-            .where(eq(discussions.companyId, input.companyId))
-            .orderBy(desc(discussions.createdAt))
             .limit(scanLimit),
           db
             .select({
@@ -197,38 +163,6 @@ export function agentNotificationService(db: Db) {
           excerpt: excerpt(`${row.title}${row.description ? ` - ${row.description}` : ""}`),
           issueId: row.id,
           issueTitle: row.title,
-          authorAgentId: row.authorAgentId,
-          authorUserId: row.authorUserId,
-        });
-      }
-
-      for (const row of discussionCommentRows) {
-        if (row.authorAgentId === input.agentId) continue;
-        if (!mentionsAgent(row.body, aliases)) continue;
-        notifications.push({
-          id: row.id,
-          type: "discussion_comment",
-          companyId: row.companyId,
-          createdAt: row.createdAt,
-          excerpt: excerpt(row.body),
-          discussionId: row.discussionId,
-          discussionTitle: row.discussionTitle,
-          authorAgentId: row.authorAgentId,
-          authorUserId: row.authorUserId,
-        });
-      }
-
-      for (const row of discussionRows) {
-        if (row.authorAgentId === input.agentId) continue;
-        if (!mentionsAgent(`${row.title}\n${row.description ?? ""}`, aliases)) continue;
-        notifications.push({
-          id: row.id,
-          type: "discussion_text",
-          companyId: row.companyId,
-          createdAt: row.createdAt,
-          excerpt: excerpt(`${row.title}${row.description ? ` - ${row.description}` : ""}`),
-          discussionId: row.id,
-          discussionTitle: row.title,
           authorAgentId: row.authorAgentId,
           authorUserId: row.authorUserId,
         });

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { inferOpenAiCompatibleBiller, type AdapterExecutionContext, type AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import { estimateUsageCostUsd, inferOpenAiCompatibleBiller, type AdapterExecutionContext, type AdapterExecutionResult } from "@paperclipai/adapter-utils";
 import {
   asString,
   asNumber,
@@ -493,7 +493,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       biller: resolveCursorBiller(effectiveEnv, billingType, providerFromModel),
       model,
       billingType,
-      costUsd: attempt.parsed.costUsd,
+      costUsd: attempt.parsed.costUsd ?? estimateUsageCostUsd({ model, usage: attempt.parsed.usage }),
       resultJson: {
         stdout: attempt.proc.stdout,
         stderr: attempt.proc.stderr,

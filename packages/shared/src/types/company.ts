@@ -1,5 +1,12 @@
 import type { CompanyStatus } from "../constants.js";
-import type { FallbackConfig } from "./fallback.js";
+
+export interface FallbackConfig {
+  enabled?: boolean;
+  adapterId?: string;
+  adapterType?: string;
+  modelId?: string;
+  rateLimitKeywords?: string[];
+}
 
 export interface Company {
   id: string;

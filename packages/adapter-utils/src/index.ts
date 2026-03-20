@@ -45,3 +45,4 @@ export {
   redactTranscriptEntryPaths,
 } from "./log-redaction.js";
 export { inferOpenAiCompatibleBiller } from "./billing.js";
+export { findKnownModelPricing, estimateUsageCostUsd } from "./pricing.js";

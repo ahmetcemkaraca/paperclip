@@ -44,6 +44,7 @@ export {
   createAgentSchema,
   createAgentHireSchema,
   updateAgentSchema,
+  batchUpdateAgentsSchema,
   updateAgentInstructionsPathSchema,
   createAgentKeySchema,
   wakeAgentSchema,
@@ -54,6 +55,7 @@ export {
   type CreateAgent,
   type CreateAgentHire,
   type UpdateAgent,
+  type BatchUpdateAgents,
   type UpdateAgentInstructionsPath,
   type CreateAgentKey,
   type WakeAgent,
@@ -159,6 +161,11 @@ export {
   createFinanceEventSchema,
   type CreateFinanceEvent,
 } from "./finance.js";
+
+export {
+  fallbackConfigSchema,
+  type FallbackConfigInput,
+} from "./fallback.js";
 
 export {
   createAssetImageMetadataSchema,

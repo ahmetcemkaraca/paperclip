@@ -55,6 +55,14 @@ export function resolveViteHmrPort(serverPort: number): number {
   return Math.max(1_024, serverPort - 10_000);
 }
 
+function resolveViteClientHost(bindHost: string): string | undefined {
+  const normalized = bindHost.trim().toLowerCase();
+  if (normalized === "0.0.0.0" || normalized === "::") {
+    return "localhost";
+  }
+  return bindHost;
+}
+
 export async function createApp(
   db: Db,
   opts: {
@@ -250,6 +258,7 @@ export async function createApp(
   if (opts.uiMode === "vite-dev") {
     const uiRoot = path.resolve(__dirname, "../../ui");
     const hmrPort = resolveViteHmrPort(opts.serverPort);
+    const clientHost = resolveViteClientHost(opts.bindHost);
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       root: uiRoot,
@@ -257,10 +266,11 @@ export async function createApp(
       server: {
         middlewareMode: true,
         hmr: {
-          host: opts.bindHost,
+          host: clientHost,
           port: hmrPort,
           clientPort: hmrPort,
         },
+        origin: clientHost ? `http://${clientHost}:${opts.serverPort}` : undefined,
         allowedHosts: privateHostnameGateEnabled ? Array.from(privateHostnameAllowSet) : undefined,
       },
     });

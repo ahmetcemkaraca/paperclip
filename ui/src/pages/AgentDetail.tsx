@@ -55,8 +55,8 @@ import {
   EyeOff,
   Copy,
   ChevronRight,
-  ChevronDown,
   ArrowLeft,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { AgentIcon, AgentIconPicker } from "../components/AgentIconPicker";
@@ -469,6 +469,7 @@ export function AgentDetail() {
   const navigate = useNavigate();
   const [actionError, setActionError] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [heartbeatMode, setHeartbeatMode] = useState<"normal" | "force">("normal");
   const activeView = urlRunId ? "runs" as AgentDetailView : parseAgentDetailView(urlTab ?? null);
   const [configDirty, setConfigDirty] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
@@ -602,7 +603,10 @@ export function AgentDetail() {
     mutationFn: async (action: "invoke" | "pause" | "resume" | "terminate") => {
       if (!agentLookupRef) return Promise.reject(new Error("No agent reference"));
       switch (action) {
-        case "invoke": return agentsApi.invoke(agentLookupRef, resolvedCompanyId ?? undefined);
+        case "invoke":
+          return agentsApi.invoke(agentLookupRef, resolvedCompanyId ?? undefined, {
+            forceFreshSession: heartbeatMode === "force",
+          });
         case "pause": return agentsApi.pause(agentLookupRef, resolvedCompanyId ?? undefined);
         case "resume": return agentsApi.resume(agentLookupRef, resolvedCompanyId ?? undefined);
         case "terminate": return agentsApi.terminate(agentLookupRef, resolvedCompanyId ?? undefined);
@@ -773,8 +777,39 @@ export function AgentDetail() {
             disabled={agentAction.isPending || isPendingApproval}
           >
             <Play className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Run Heartbeat</span>
+            <span className="hidden sm:inline">
+              {heartbeatMode === "force" ? "Force Heartbeat" : "Run Heartbeat"}
+            </span>
           </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" disabled={agentAction.isPending || isPendingApproval}>
+                <span className="hidden sm:inline">
+                  {heartbeatMode === "force" ? "Force fresh session" : "Normal"}
+                </span>
+                <span className="sm:hidden">
+                  {heartbeatMode === "force" ? "Force" : "Normal"}
+                </span>
+                <ChevronDownIcon className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" align="end">
+              <button
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent/50"
+                onClick={() => setHeartbeatMode("normal")}
+              >
+                <span className={cn("h-2 w-2 rounded-full", heartbeatMode === "normal" ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                Normal
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent/50"
+                onClick={() => setHeartbeatMode("force")}
+              >
+                <span className={cn("h-2 w-2 rounded-full", heartbeatMode === "force" ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                Force fresh session
+              </button>
+            </PopoverContent>
+          </Popover>
           {agent.status === "paused" ? (
             <Button
               variant="outline"
