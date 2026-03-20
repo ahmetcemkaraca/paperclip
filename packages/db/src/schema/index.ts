@@ -38,6 +38,7 @@ export { heartbeatRuns } from "./heartbeat_runs.js";
 export { heartbeatRunEvents } from "./heartbeat_run_events.js";
 export { costEvents } from "./cost_events.js";
 export { financeEvents } from "./finance_events.js";
+export { modelPrices } from "./model_prices.js";
 export { approvals } from "./approvals.js";
 export { approvalComments } from "./approval_comments.js";
 export { activityLog } from "./activity_log.js";

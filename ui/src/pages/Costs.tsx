@@ -16,6 +16,7 @@ import { BillerSpendCard } from "../components/BillerSpendCard";
 import { BudgetIncidentCard } from "../components/BudgetIncidentCard";
 import { BudgetPolicyCard } from "../components/BudgetPolicyCard";
 import { EmptyState } from "../components/EmptyState";
+import { ModelPricesPanel } from "../components/ModelPricesPanel";
 import { FinanceBillerCard } from "../components/FinanceBillerCard";
 import { FinanceKindCard } from "../components/FinanceKindCard";
 import { FinanceTimelineCard } from "../components/FinanceTimelineCard";
@@ -624,6 +625,7 @@ export function Costs() {
           <TabsTrigger value="providers">Providers</TabsTrigger>
           <TabsTrigger value="billers">Billers</TabsTrigger>
           <TabsTrigger value="finance">Finance</TabsTrigger>
+          <TabsTrigger value="model-prices">Model Prices</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4 space-y-4">
@@ -1095,6 +1097,10 @@ export function Costs() {
               </div>
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="model-prices" className="mt-4 space-y-4">
+          <ModelPricesPanel />
         </TabsContent>
       </Tabs>
     </div>

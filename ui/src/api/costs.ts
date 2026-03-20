@@ -22,6 +22,16 @@ function dateParams(from?: string, to?: string): string {
   return qs ? `?${qs}` : "";
 }
 
+export interface ModelPrice {
+  id: string;
+  modelName: string;
+  inputCostPerMillion: number;
+  outputCostPerMillion: number;
+  cachedInputCostPerMillion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const costsApi = {
   summary: (companyId: string, from?: string, to?: string) =>
     api.get<CostSummary>(`/companies/${companyId}/costs/summary${dateParams(from, to)}`),
@@ -47,6 +57,13 @@ export const costsApi = {
     api.get<CostWindowSpendRow[]>(`/companies/${companyId}/costs/window-spend`),
   quotaWindows: (companyId: string) =>
     api.get<ProviderQuotaResult[]>(`/companies/${companyId}/costs/quota-windows`),
+  listModelPrices: () => api.get<ModelPrice[]>("/model-prices"),
+  upsertModelPrice: (modelName: string, data: { inputCostPerMillion: number; outputCostPerMillion: number; cachedInputCostPerMillion: number }) =>
+    api.put<ModelPrice>(`/model-prices/${modelName}`, data),
+  deleteModelPrice: (modelName: string) =>
+    api.delete(`/model-prices/${modelName}`),
+  recalculateModelPrices: (companyId: string) =>
+    api.post<{ updatedCount: number }>(`/companies/${companyId}/costs/recalculate-model-prices`, {}),
 };
 
 function dateParamsWithLimit(from?: string, to?: string, limit?: number): string {

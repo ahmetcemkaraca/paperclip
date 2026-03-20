@@ -16,6 +16,7 @@ import {
   agentService,
   heartbeatService,
   logActivity,
+  modelPriceService,
 } from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { fetchAllQuotaWindows } from "../services/quota-windows.js";
@@ -32,6 +33,7 @@ export function costRoutes(db: Db) {
   const budgets = budgetService(db, budgetHooks);
   const companies = companyService(db);
   const agents = agentService(db);
+  const modelPrices = modelPriceService(db);
 
   router.post("/companies/:companyId/cost-events", validate(createCostEventSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
@@ -328,6 +330,49 @@ export function costRoutes(db: Db) {
     );
 
     res.json(updated);
+  });
+
+  // Model Prices Routes (Instance Admin Only)
+  router.get("/model-prices", async (req, res) => {
+    // TODO: Add instance admin authorization check
+    const prices = await modelPrices.list();
+    res.json(prices);
+  });
+
+  router.put("/model-prices/:modelName", async (req, res) => {
+    // TODO: Add instance admin authorization check
+    const modelName = req.params.modelName as string;
+    const { inputCostPerMillion, outputCostPerMillion, cachedInputCostPerMillion } = req.body;
+
+    if (
+      typeof inputCostPerMillion !== "number" ||
+      typeof outputCostPerMillion !== "number" ||
+      typeof cachedInputCostPerMillion !== "number"
+    ) {
+      res.status(400).json({ error: "Invalid pricing data" });
+      return;
+    }
+
+    const price = await modelPrices.upsert(modelName, {
+      inputCostPerMillion,
+      outputCostPerMillion,
+      cachedInputCostPerMillion,
+    });
+
+    res.json(price);
+  });
+
+  router.delete("/model-prices/:modelName", async (req, res) => {
+    // TODO: Add instance admin authorization check
+    const modelName = req.params.modelName as string;
+    await modelPrices.delete(modelName);
+    res.status(204).send();
+  });
+
+  router.post("/companies/:companyId/costs/recalculate-model-prices", async (req, res) => {
+    // TODO: Add instance admin authorization check
+    const result = await modelPrices.recalculate();
+    res.json(result);
   });
 
   return router;

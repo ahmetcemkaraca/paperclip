@@ -24,6 +24,7 @@ import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { parseObject, asBoolean, asNumber, appendWithCap, MAX_EXCERPT_BYTES } from "../adapters/utils.js";
 import { costService } from "./costs.js";
 import { secretService } from "./secrets.js";
+import { modelPriceService, computeCostCents } from "./model-prices.js";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import { summarizeHeartbeatRunResultJson } from "./heartbeat-run-summary.js";
 import {
@@ -1566,8 +1567,28 @@ export function heartbeatService(db: Db) {
     const inputTokens = usage?.inputTokens ?? 0;
     const outputTokens = usage?.outputTokens ?? 0;
     const cachedInputTokens = usage?.cachedInputTokens ?? 0;
-    const additionalCostCents = Math.max(0, Math.round((result.costUsd ?? 0) * 100));
+    let additionalCostCents = Math.max(0, Math.round((result.costUsd ?? 0) * 100));
     const hasTokenUsage = inputTokens > 0 || outputTokens > 0 || cachedInputTokens > 0;
+
+    // Fallback: if adapter didn't provide cost but we have tokens and a custom price, use it
+    if (
+      additionalCostCents === 0 &&
+      hasTokenUsage &&
+      result.model &&
+      result.model !== "unknown"
+    ) {
+      const modelPrice = await modelPriceService(db).getByModel(result.model);
+      if (modelPrice) {
+        additionalCostCents = computeCostCents(
+          { inputTokens, outputTokens, cachedInputTokens },
+          {
+            inputCostPerMillion: modelPrice.inputCostPerMillion,
+            outputCostPerMillion: modelPrice.outputCostPerMillion,
+            cachedInputCostPerMillion: modelPrice.cachedInputCostPerMillion,
+          },
+        );
+      }
+    }
 
     await db
       .update(agentRuntimeState)

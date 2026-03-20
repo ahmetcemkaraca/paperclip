@@ -12,6 +12,7 @@ export { budgetService } from "./budgets.js";
 export { secretService } from "./secrets.js";
 export { costService } from "./costs.js";
 export { financeService } from "./finance.js";
+export { modelPriceService, computeCostCents, type ModelPrice, type ModelPriceData } from "./model-prices.js";
 export { heartbeatService } from "./heartbeat.js";
 export { dashboardService } from "./dashboard.js";
 export { sidebarBadgeService } from "./sidebar-badges.js";
