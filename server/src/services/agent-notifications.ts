@@ -51,11 +51,22 @@ function normalizeMentionToken(token: string) {
 
 function mentionsAgent(text: string | null | undefined, aliases: Set<string>) {
   if (!text || aliases.size === 0) return false;
+
+  // Check for @mention tokens (e.g., @cto-xyz)
   const tokens = extractMentionTokens(text);
   for (const token of tokens) {
     const normalizedToken = normalizeMentionToken(token);
     if (aliases.has(token) || aliases.has(normalizedToken)) return true;
   }
+
+  // Fallback: check for space-separated names (e.g., "cto xyz" or "cto-xyz" without @)
+  for (const alias of aliases) {
+    // Check for word boundaries: "cto-xyz" or "cto xyz" patterns
+    const spacePattern = alias.replace(/[\s_-]+/g, "[\\s_-]+");
+    const regex = new RegExp(`\\b${spacePattern}\\b`, "i");
+    if (regex.test(text)) return true;
+  }
+
   return false;
 }
 
