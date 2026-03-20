@@ -6,6 +6,15 @@ export const typeLabel: Record<string, string> = {
   update_company_system_prompt: "Update COMPANY.md",
 };
 
+/** Build a contextual label for an approval, e.g. "Hire Agent: Designer" */
+export function approvalLabel(type: string, payload?: Record<string, unknown> | null): string {
+  const base = typeLabel[type] ?? type;
+  if (type === "hire_agent" && payload?.name) {
+    return `${base}: ${String(payload.name)}`;
+  }
+  return base;
+}
+
 export const typeIcon: Record<string, typeof UserPlus> = {
   hire_agent: UserPlus,
   approve_ceo_strategy: Lightbulb,

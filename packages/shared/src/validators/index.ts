@@ -17,10 +17,12 @@ export {
   updateCompanySchema,
   updateCompanySystemPromptSchema,
   proposeCompanySystemPromptSchema,
+  updateCompanyBrandingSchema,
   type CreateCompany,
   type UpdateCompany,
   type UpdateCompanySystemPrompt,
   type ProposeCompanySystemPrompt,
+  type UpdateCompanyBranding,
 } from "./company.js";
 export {
   fallbackConfigSchema,

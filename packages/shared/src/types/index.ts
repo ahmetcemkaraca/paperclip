@@ -3,6 +3,9 @@ export type { FallbackConfig, FallbackAction } from "./fallback.js";
 export type { InstanceExperimentalSettings, InstanceSettings } from "./instance.js";
 export type {
   Agent,
+  AgentAccessState,
+  AgentChainOfCommandEntry,
+  AgentDetail,
   AgentPermissions,
   AgentKeyCreated,
   AgentConfigRevision,

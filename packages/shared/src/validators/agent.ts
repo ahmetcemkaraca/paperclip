@@ -104,8 +104,9 @@ export type TestAdapterEnvironment = z.infer<typeof testAdapterEnvironmentSchema
 export const updateAgentPermissionsSchema = z.object({
   canCreateAgents: z.boolean().optional(),
   canInvokeOtherAgents: z.boolean().optional(),
+  canAssignTasks: z.boolean().optional(),
 }).refine(
-  (value) => value.canCreateAgents !== undefined || value.canInvokeOtherAgents !== undefined,
+  (value) => value.canCreateAgents !== undefined || value.canInvokeOtherAgents !== undefined || value.canAssignTasks !== undefined,
   {
     message: "At least one permission must be provided",
   },

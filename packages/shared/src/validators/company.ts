@@ -37,3 +37,13 @@ export const proposeCompanySystemPromptSchema = z.object({
 });
 
 export type ProposeCompanySystemPrompt = z.infer<typeof proposeCompanySystemPromptSchema>;
+
+/** Branding-only subset that CEO agents may update. */
+export const updateCompanyBrandingSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+  logoAssetId: logoAssetIdSchema,
+});
+
+export type UpdateCompanyBranding = z.infer<typeof updateCompanyBrandingSchema>;

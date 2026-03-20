@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, Link, Navigate, useBeforeUnload } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { agentsApi, type AgentKey, type ClaudeLoginResult, type AvailableSkill } from "../api/agents";
+import {
+  agentsApi,
+  type AgentKey,
+  type ClaudeLoginResult,
+  type AvailableSkill,
+  type AgentPermissionUpdate,
+} from "../api/agents";
 import { budgetsApi } from "../api/budgets";
 import { heartbeatsApi } from "../api/heartbeats";
 import { ApiError } from "../api/client";
@@ -64,6 +70,7 @@ import { RunTranscriptView, type TranscriptMode } from "../components/transcript
 import {
   isUuidLike,
   type Agent,
+  type AgentDetail as AgentDetailRecord,
   type BudgetPolicySummary,
   type HeartbeatRun,
   type HeartbeatRunEvent,
@@ -486,7 +493,7 @@ export function AgentDetail() {
   const setSaveConfigAction = useCallback((fn: (() => void) | null) => { saveConfigActionRef.current = fn; }, []);
   const setCancelConfigAction = useCallback((fn: (() => void) | null) => { cancelConfigActionRef.current = fn; }, []);
 
-  const { data: agent, isLoading, error } = useQuery({
+  const { data: agent, isLoading, error } = useQuery<AgentDetailRecord>({
     queryKey: [...queryKeys.agents.detail(routeAgentRef), lookupCompanyId ?? null],
     queryFn: () => agentsApi.get(routeAgentRef, lookupCompanyId),
     enabled: canFetchAgent,
@@ -1076,7 +1083,7 @@ function AgentOverview({
   agentId,
   agentRouteId,
 }: {
-  agent: Agent;
+  agent: AgentDetailRecord;
   runs: HeartbeatRun[];
   assignedIssues: { id: string; title: string; status: string; priority: string; identifier?: string | null; createdAt: Date }[];
   runtimeState?: AgentRuntimeState;
@@ -1233,13 +1240,14 @@ function AgentConfigurePage({
   onSavingChange,
   updatePermissions,
 }: {
-  agent: Agent;
+  agent: AgentDetailRecord;
   agentId: string;
   companyId?: string;
   onDirtyChange: (dirty: boolean) => void;
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
+<<<<<<< HEAD
   updatePermissions: { mutate: (patch: Partial<Agent["permissions"]>) => void; isPending: boolean };
 }) {
   const queryClient = useQueryClient();
@@ -1340,12 +1348,13 @@ function ConfigurationTab({
   onSavingChange,
   updatePermissions,
 }: {
-  agent: Agent;
+  agent: AgentDetailRecord;
   companyId?: string;
   onDirtyChange: (dirty: boolean) => void;
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
+<<<<<<< HEAD
   updatePermissions: { mutate: (patch: Partial<Agent["permissions"]>) => void; isPending: boolean };
 }) {
   const queryClient = useQueryClient();
@@ -1389,6 +1398,19 @@ function ConfigurationTab({
     onSavingChange(isConfigSaving);
   }, [onSavingChange, isConfigSaving]);
 
+  const canCreateAgents = Boolean(agent.permissions?.canCreateAgents);
+  const canAssignTasks = Boolean(agent.access?.canAssignTasks);
+  const taskAssignSource = agent.access?.taskAssignSource ?? "none";
+  const taskAssignLocked = agent.role === "ceo" || canCreateAgents;
+  const taskAssignHint =
+    taskAssignSource === "ceo_role"
+      ? "Enabled automatically for CEO agents."
+      : taskAssignSource === "agent_creator"
+        ? "Enabled automatically while this agent can create new agents."
+        : taskAssignSource === "explicit_grant"
+          ? "Enabled via explicit company permission grant."
+          : "Disabled unless explicitly granted.";
+
   return (
     <div className="space-y-6">
       <AgentConfigForm
@@ -1421,8 +1443,50 @@ function ConfigurationTab({
             disabled={updatePermissions.isPending}
             onChange={(checked) => updatePermissions.mutate({ canInvokeOtherAgents: checked })}
           />
+          <ToggleField
+            label="Can assign tasks"
+            hint={help.canAssignTasks}
+            checked={Boolean(agent.permissions?.canAssignTasks)}
+            disabled={updatePermissions.isPending}
+            onChange={(checked) => updatePermissions.mutate({ canAssignTasks: checked })}
+          />
           <div className="text-xs text-muted-foreground leading-5">
-            This controls whether the agent can wake or invoke peers through the agent APIs.
+            This controls whether the agent can wake, invoke peers, or assign tasks through the agent APIs.
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-4 text-sm">
+        <div className="space-y-1">
+          <div>Can assign tasks</div>
+          <p className="text-xs text-muted-foreground">
+            {taskAssignHint}
+          </p>
+        </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={canAssignTasks}
+              className={cn(
+                "relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+                canAssignTasks
+                  ? "bg-green-500 focus-visible:ring-green-500/70"
+                  : "bg-input/50 focus-visible:ring-ring",
+              )}
+              onClick={() =>
+                updatePermissions.mutate({
+                  canCreateAgents,
+                  canAssignTasks: !canAssignTasks,
+                })
+              }
+              disabled={updatePermissions.isPending || taskAssignLocked}
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 transform rounded-full bg-background transition-transform",
+                  canAssignTasks ? "translate-x-6" : "translate-x-1",
+                )}
+              />
+            </button>
           </div>
         </div>
       </div>

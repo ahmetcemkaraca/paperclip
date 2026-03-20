@@ -5,10 +5,28 @@ import type {
   AgentStatus,
 } from "../constants.js";
 import type { FallbackConfig } from "./fallback.js";
+import type {
+  CompanyMembership,
+  PrincipalPermissionGrant,
+} from "./access.js";
 
 export interface AgentPermissions {
   canCreateAgents: boolean;
   canInvokeOtherAgents: boolean;
+}
+
+export interface AgentAccessState {
+  canAssignTasks: boolean;
+  taskAssignSource: "explicit_grant" | "agent_creator" | "ceo_role" | "none";
+  membership: CompanyMembership | null;
+  grants: PrincipalPermissionGrant[];
+}
+
+export interface AgentChainOfCommandEntry {
+  id: string;
+  name: string;
+  role: AgentRole;
+  title: string | null;
 }
 
 export interface Agent {
@@ -35,6 +53,11 @@ export interface Agent {
   metadata: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AgentDetail extends Agent {
+  chainOfCommand: AgentChainOfCommandEntry[];
+  access: AgentAccessState;
 }
 
 export interface AgentKeyCreated {

@@ -269,24 +269,10 @@
       "breakpoints": true
     },
     {
-      "idx": 33,
-      "version": "7",
-      "when": 1773493000000,
-      "tag": "0033_agent_notifications_read_state",
-      "breakpoints": true
-    },
-    {
-      "idx": 32,
-      "version": "7",
-      "when": 1773480000000,
-      "tag": "0032_company_system_prompt",
-      "breakpoints": true
-    },
-    {
       "idx": 38,
       "version": "7",
-      "when": 1774003200000,
-      "tag": "0038_project_progress_percent",
+      "when": 1773931592563,
+      "tag": "0038_careless_iron_monger",
       "breakpoints": true
     }
   ]
