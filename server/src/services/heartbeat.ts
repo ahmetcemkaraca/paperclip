@@ -49,6 +49,7 @@ import {
 import { logActivity } from "./activity-log.js";
 import { DEFAULT_RATE_LIMIT_KEYWORDS } from "@paperclipai/shared";
 import { redactCurrentUserText, redactCurrentUserValue } from "../log-redaction.js";
+import { agentNotificationService } from "./agent-notifications.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
@@ -2700,6 +2701,19 @@ export function heartbeatService(db: Db) {
       return null;
     }
 
+    if (source === "timer") {
+      const notifications = await agentNotificationService(db).listMentions({
+        companyId: agent.companyId,
+        agentId,
+        limit: 1,
+      });
+
+      if (!notifications.length) {
+        await writeSkippedRequest("no_unread_notifications");
+        return null;
+      }
+    }
+
     const bypassIssueExecutionLock =
       reason === "issue_comment_mentioned" ||
       readNonEmptyString(enrichedContextSnapshot.wakeReason) === "issue_comment_mentioned";
@@ -2717,6 +2731,7 @@ export function heartbeatService(db: Db) {
           .select({
             id: issues.id,
             companyId: issues.companyId,
+            status: issues.status,
             executionRunId: issues.executionRunId,
             executionAgentNameKey: issues.executionAgentNameKey,
           })
@@ -2731,6 +2746,23 @@ export function heartbeatService(db: Db) {
             source,
             triggerDetail,
             reason: "issue_execution_issue_not_found",
+            payload,
+            status: "skipped",
+            requestedByActorType: opts.requestedByActorType ?? null,
+            requestedByActorId: opts.requestedByActorId ?? null,
+            idempotencyKey: opts.idempotencyKey ?? null,
+            finishedAt: new Date(),
+          });
+          return { kind: "skipped" as const };
+        }
+
+        if (issue.status === "done" || issue.status === "cancelled") {
+          await tx.insert(agentWakeupRequests).values({
+            companyId: agent.companyId,
+            agentId,
+            source,
+            triggerDetail,
+            reason: "issue_already_done_or_cancelled",
             payload,
             status: "skipped",
             requestedByActorType: opts.requestedByActorType ?? null,
