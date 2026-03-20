@@ -22,8 +22,6 @@ export interface AgentMentionNotification {
   excerpt: string;
   issueId?: string | null;
   issueTitle?: string | null;
-  discussionId?: string | null;
-  discussionTitle?: string | null;
   approvalId?: string | null;
   authorAgentId?: string | null;
   authorUserId?: string | null;
@@ -81,8 +79,10 @@ export function agentNotificationService(db: Db) {
       if (compactName) aliases.add(compactName);
       const normalizedUrlKey = normalizeAgentUrlKey(agent.name);
       if (normalizedUrlKey) aliases.add(normalizedUrlKey.toLowerCase());
-      const compactUrlKey = normalizeMentionToken(normalizedUrlKey);
-      if (compactUrlKey) aliases.add(compactUrlKey);
+      if (normalizedUrlKey) {
+        const compactUrlKey = normalizeMentionToken(normalizedUrlKey);
+        if (compactUrlKey) aliases.add(compactUrlKey);
+      }
 
       const [issueCommentRows, issueRows, approvalCommentRows] =
         await Promise.all([

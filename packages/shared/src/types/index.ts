@@ -1,4 +1,5 @@
-export type { Company, FallbackConfig } from "./company.js";
+export type { Company } from "./company.js";
+export type { FallbackConfig, FallbackAction } from "./fallback.js";
 export type { InstanceExperimentalSettings, InstanceSettings } from "./instance.js";
 export type {
   Agent,

@@ -16,7 +16,6 @@ import {
 } from "@paperclipai/adapter-utils/server-utils";
 import path from "node:path";
 import { detectClaudeLoginRequired, parseClaudeStreamJson } from "./parse.js";
-import { loadClaudeSettings, resolveClaudeModelFromSettings } from "./settings.js";
 
 function summarizeStatus(checks: AdapterEnvironmentCheck[]): AdapterEnvironmentTestResult["status"] {
   if (checks.some((check) => check.level === "error")) return "fail";
@@ -128,8 +127,7 @@ export async function testEnvironment(
         hint: "Use the `claude` CLI command to run the automatic login and installation probe.",
       });
     } else {
-      const settings = await loadClaudeSettings();
-      const model = asString(config.model, "").trim() || resolveClaudeModelFromSettings(settings) || "";
+      const model = asString(config.model, "").trim();
       const effort = asString(config.effort, "").trim();
       const chrome = asBoolean(config.chrome, false);
       const maxTurns = asNumber(config.maxTurnsPerRun, 0);

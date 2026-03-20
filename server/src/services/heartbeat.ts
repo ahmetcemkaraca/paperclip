@@ -3117,6 +3117,59 @@ export function heartbeatService(db: Db) {
       return runs.length;
     },
 
+    cancelBudgetScopeWork: async (scope: {
+      companyId: string;
+      scopeType: "company" | "agent" | "project";
+      scopeId: string;
+    }) => {
+      if (scope.scopeType === "agent") {
+        await db
+          .select({ id: heartbeatRuns.id })
+          .from(heartbeatRuns)
+          .where(and(eq(heartbeatRuns.agentId, scope.scopeId), inArray(heartbeatRuns.status, ["queued", "running"])))
+          .then((rows) => Promise.all(rows.map((row) => setRunStatus(row.id, "cancelled", {
+            finishedAt: new Date(),
+            error: "Cancelled due to budget hard stop",
+            errorCode: "cancelled",
+          }))));
+        return;
+      }
+
+      const runs = await db
+        .select()
+        .from(heartbeatRuns)
+        .where(
+          and(
+            eq(heartbeatRuns.companyId, scope.companyId),
+            inArray(heartbeatRuns.status, ["queued", "running"]),
+            scope.scopeType === "project"
+              ? sql`${heartbeatRuns.contextSnapshot} ->> 'projectId' = ${scope.scopeId}`
+              : undefined,
+          ),
+        );
+
+      for (const run of runs) {
+        await setRunStatus(run.id, "cancelled", {
+          finishedAt: new Date(),
+          error: "Cancelled due to budget hard stop",
+          errorCode: "cancelled",
+        });
+
+        await setWakeupStatus(run.wakeupRequestId, "cancelled", {
+          finishedAt: new Date(),
+          error: "Cancelled due to budget hard stop",
+        });
+
+        const running = runningProcesses.get(run.id);
+        if (running) {
+          running.child.kill("SIGTERM");
+          runningProcesses.delete(run.id);
+        }
+
+        await releaseIssueExecutionAndPromote(run);
+      }
+    },
+
     getActiveRunForAgent: async (agentId: string) => {
       const [run] = await db
         .select()

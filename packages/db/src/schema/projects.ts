@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, date, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, date, index, jsonb, integer } from "drizzle-orm/pg-core";
 import { companies } from "./companies.js";
 import { goals } from "./goals.js";
 import { agents } from "./agents.js";
@@ -12,6 +12,7 @@ export const projects = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     status: text("status").notNull().default("backlog"),
+    progressPercent: integer("progress_percent").notNull().default(0),
     leadAgentId: uuid("lead_agent_id").references(() => agents.id),
     targetDate: date("target_date"),
     color: text("color"),

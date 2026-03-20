@@ -56,7 +56,7 @@ export async function testEnvironment(
   const checks: AdapterEnvironmentCheck[] = [];
   const config = parseObject(ctx.config);
   const command = asString(config.command, "opencode");
-  const cwd = asString(config.cwd, "/");
+  const cwd = asString(config.cwd, process.cwd());
 
   try {
     await ensureAbsoluteDirectory(cwd, { createIfMissing: false });

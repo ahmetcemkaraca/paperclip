@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertCircle, Archive, ArchiveRestore, Check, ExternalLink, Github, Loader2, Plus, Trash2, X } from "lucide-react";
 import { ChoosePathButton } from "./PathInstructionsModal";
-import { DraftInput } from "./agent-config-primitives";
+import { DraftInput, DraftNumberInput } from "./agent-config-primitives";
 import { InlineEditor } from "./InlineEditor";
 
 const PROJECT_STATUSES = [
@@ -41,6 +41,7 @@ export type ProjectConfigFieldKey =
   | "name"
   | "description"
   | "status"
+  | "progress_percent"
   | "goals"
   | "execution_workspace_enabled"
   | "execution_workspace_default_mode"
@@ -233,6 +234,7 @@ export function ProjectProperties({ project, onUpdate, onFieldUpdate, getFieldSa
     onUpdate?.(data);
   };
   const fieldState = (field: ProjectConfigFieldKey): ProjectFieldSaveState => getFieldSaveState?.(field) ?? "idle";
+  const clampProgressPercent = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
   const { data: allGoals } = useQuery({
     queryKey: queryKeys.goals.list(selectedCompanyId!),
@@ -512,6 +514,23 @@ export function ProjectProperties({ project, onUpdate, onFieldUpdate, getFieldSa
             />
           ) : (
             <StatusBadge status={project.status} />
+          )}
+        </PropertyRow>
+        <PropertyRow label={<FieldLabel label="Progress" state={fieldState("progress_percent")} />}>
+          {onUpdate || onFieldUpdate ? (
+            <div className="flex items-center gap-2">
+              <DraftNumberInput
+                value={project.progressPercent}
+                onCommit={(value) => commitField("progress_percent", { progressPercent: clampProgressPercent(value) })}
+                immediate
+                min={0}
+                max={100}
+                className="w-20 rounded border border-border bg-transparent px-2 py-1 text-sm font-mono outline-none"
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
+          ) : (
+            <span className="text-sm font-medium">{project.progressPercent}%</span>
           )}
         </PropertyRow>
         {project.leadAgentId && (

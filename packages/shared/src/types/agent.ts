@@ -4,6 +4,7 @@ import type {
   AgentRole,
   AgentStatus,
 } from "../constants.js";
+import type { FallbackConfig } from "./fallback.js";
 
 export interface AgentPermissions {
   canCreateAgents: boolean;
@@ -23,6 +24,7 @@ export interface Agent {
   capabilities: string | null;
   adapterType: AgentAdapterType;
   adapterConfig: Record<string, unknown>;
+  fallbackConfig: FallbackConfig;
   runtimeConfig: Record<string, unknown>;
   budgetMonthlyCents: number;
   spentMonthlyCents: number;

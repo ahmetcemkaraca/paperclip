@@ -1,73 +1,87 @@
-import type { AdapterExecutionResult } from "../adapters/index.js";
+import type { FallbackConfig } from "@paperclipai/shared";
 import { DEFAULT_RATE_LIMIT_KEYWORDS } from "@paperclipai/shared";
+import type { AdapterExecutionResult } from "../adapters/index.js";
 
-export interface FallbackConfig {
-  enabled?: boolean | null;
-  adapterId?: string | null;
-  adapterType?: string | null;
-  modelId?: string | null;
-  rateLimitKeywords?: string[] | null;
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function normalizeFallbackConfig(config: FallbackConfig | null | undefined): FallbackConfig | null {
+  if (!config || typeof config !== "object") return null;
+  return {
+    enabled: config.enabled,
+    adapterId: asNonEmptyString(config.adapterId) ?? undefined,
+    adapterType: asNonEmptyString(config.adapterType) ?? undefined,
+    modelId: asNonEmptyString(config.modelId) ?? undefined,
+    rateLimitKeywords: asStringArray(config.rateLimitKeywords),
+    issueCommentOrder: config.issueCommentOrder,
+  };
+}
+
+export function containsRateLimitKeywords(text: string, keywords: string[]): boolean {
+  const normalized = text.toLowerCase();
+  return keywords.some((keyword) => normalized.includes(keyword.toLowerCase()));
 }
 
 export interface FallbackDetectionResult {
-  shouldFallback: boolean;
+  isRateLimit: boolean;
   detectedKeyword: string | null;
-}
-
-function normalizeConfig(config: FallbackConfig | null | undefined): FallbackConfig {
-  return config && typeof config === "object" ? config : {};
-}
-
-function collectText(result: AdapterExecutionResult): string {
-  const parts: string[] = [];
-  if (typeof result.stdout === "string") parts.push(result.stdout);
-  if (typeof result.stderr === "string") parts.push(result.stderr);
-  if (typeof result.error === "string") parts.push(result.error);
-  return parts.join("\n").toLowerCase();
 }
 
 export function detectRateLimitInResult(
   result: AdapterExecutionResult,
-  keywords: readonly string[] = DEFAULT_RATE_LIMIT_KEYWORDS,
-): { detectedKeyword: string | null } {
-  const haystack = collectText(result);
+  keywords: string[],
+): FallbackDetectionResult {
+  const resultText =
+    result.resultJson && typeof result.resultJson === "object"
+      ? JSON.stringify(result.resultJson)
+      : null;
+  const haystacks = [result.errorMessage, result.summary, resultText]
+    .map((value) => asNonEmptyString(value))
+    .filter((value): value is string => Boolean(value));
+
   for (const keyword of keywords) {
-    if (haystack.includes(keyword.toLowerCase())) {
-      return { detectedKeyword: keyword };
+    const normalizedKeyword = keyword.toLowerCase();
+    if (haystacks.some((text) => text.toLowerCase().includes(normalizedKeyword))) {
+      return { isRateLimit: true, detectedKeyword: keyword };
     }
   }
-  if (result.exitCode === 429) {
-    return { detectedKeyword: "429" };
-  }
-  return { detectedKeyword: null };
+
+  return { isRateLimit: false, detectedKeyword: null };
 }
 
 export function resolveFallbackConfig(
-  agentConfig: FallbackConfig | null | undefined,
-  companyConfig: FallbackConfig | null | undefined,
+  agentFallbackConfig: FallbackConfig | null | undefined,
+  companyFallbackConfig: FallbackConfig | null | undefined,
 ): FallbackConfig | null {
-  const company = normalizeConfig(companyConfig);
-  const agent = normalizeConfig(agentConfig);
-  const merged: FallbackConfig = {
-    enabled: agent.enabled ?? company.enabled ?? false,
-    adapterId: agent.adapterId ?? company.adapterId ?? null,
-    adapterType: agent.adapterType ?? company.adapterType ?? null,
-    modelId: agent.modelId ?? company.modelId ?? null,
-    rateLimitKeywords: agent.rateLimitKeywords ?? company.rateLimitKeywords ?? [...DEFAULT_RATE_LIMIT_KEYWORDS],
-  };
-
-  if (!merged.enabled || !merged.modelId) {
-    return null;
-  }
-  return merged;
+  const company = normalizeFallbackConfig(companyFallbackConfig);
+  const agent = normalizeFallbackConfig(agentFallbackConfig);
+  const merged = { ...(company ?? {}), ...(agent ?? {}) } as FallbackConfig;
+  return Object.keys(merged).length > 0 ? merged : null;
 }
 
 export function shouldAttemptFallback(
-  agentConfig: FallbackConfig | null | undefined,
-  companyConfig: FallbackConfig | null | undefined,
-  result: AdapterExecutionResult,
+  agentFallbackConfig: FallbackConfig | null | undefined,
+  companyFallbackConfig: FallbackConfig | null | undefined,
+  executionResult: AdapterExecutionResult,
 ): boolean {
-  const config = resolveFallbackConfig(agentConfig, companyConfig);
-  if (!config) return false;
-  return detectRateLimitInResult(result, config.rateLimitKeywords ?? DEFAULT_RATE_LIMIT_KEYWORDS).detectedKeyword !== null;
+  const resolved = resolveFallbackConfig(agentFallbackConfig, companyFallbackConfig);
+  if (!resolved) return false;
+  if (resolved.enabled === false) return false;
+  if (!resolved.adapterType && !resolved.modelId && !resolved.adapterId) return false;
+
+  const keywords =
+    resolved.rateLimitKeywords && resolved.rateLimitKeywords.length > 0
+      ? resolved.rateLimitKeywords
+      : DEFAULT_RATE_LIMIT_KEYWORDS;
+
+  return detectRateLimitInResult(executionResult, keywords).isRateLimit;
 }

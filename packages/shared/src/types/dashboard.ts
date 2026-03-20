@@ -1,5 +1,12 @@
 export interface DashboardSummary {
   companyId: string;
+  projects: Array<{
+    id: string;
+    name: string;
+    status: string;
+    progressPercent: number;
+    targetDate: string | null;
+  }>;
   agents: {
     active: number;
     running: number;

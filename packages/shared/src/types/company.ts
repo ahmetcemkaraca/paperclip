@@ -1,18 +1,13 @@
 import type { CompanyStatus } from "../constants.js";
-
-export interface FallbackConfig {
-  enabled?: boolean;
-  adapterId?: string;
-  adapterType?: string;
-  modelId?: string;
-  rateLimitKeywords?: string[];
-}
+import type { FallbackConfig } from "./fallback.js";
 
 export interface Company {
   id: string;
   name: string;
   description: string | null;
   status: CompanyStatus;
+  pauseReason?: "manual" | "budget" | "system" | null;
+  pausedAt?: Date | null;
   issuePrefix: string;
   issueCounter: number;
   budgetMonthlyCents: number;
@@ -20,6 +15,8 @@ export interface Company {
   requireBoardApprovalForNewAgents: boolean;
   maxConcurrentAgents: number;
   brandColor: string | null;
+  logoAssetId?: string | null;
+  logoUrl?: string | null;
   systemPromptMd?: string;
   systemPromptUpdatedAt?: Date;
   fallbackConfig: FallbackConfig;

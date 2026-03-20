@@ -82,6 +82,7 @@ export function Dashboard() {
 
   const recentIssues = issues ? getRecentIssues(issues) : [];
   const recentActivity = useMemo(() => (activity ?? []).slice(0, 10), [activity]);
+  const dashboardProjects = data?.projects ?? [];
 
   useEffect(() => {
     for (const timer of activityAnimationTimersRef.current) {
@@ -304,6 +305,48 @@ export function Dashboard() {
             className="grid gap-4 md:grid-cols-2"
             itemClassName="rounded-lg border bg-card p-4 shadow-sm"
           />
+
+          {dashboardProjects.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Project Progress
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Latest project completion updates</p>
+                </div>
+                <Link to="/projects" className="text-xs text-muted-foreground hover:text-foreground">
+                  View all
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {dashboardProjects.map((project) => (
+                  <Link
+                    key={project.id}
+                    to={`/projects/${project.id}`}
+                    className="block rounded-md border border-border/70 p-3 transition-colors hover:bg-accent/30"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{project.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {project.status.replaceAll("_", " ")}
+                          {project.targetDate ? `, target ${project.targetDate}` : ""}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-sm font-semibold">{project.progressPercent}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-border/60">
+                      <div
+                        className="h-full rounded-full bg-primary transition-[width]"
+                        style={{ width: `${project.progressPercent}%` }}
+                      />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid md:grid-cols-2 gap-4">
             {/* Recent Activity */}

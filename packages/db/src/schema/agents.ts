@@ -24,6 +24,17 @@ export const agents = pgTable(
     capabilities: text("capabilities"),
     adapterType: text("adapter_type").notNull().default("process"),
     adapterConfig: jsonb("adapter_config").$type<Record<string, unknown>>().notNull().default({}),
+    fallbackConfig: jsonb("fallback_config")
+      .$type<{
+        enabled?: boolean;
+        adapterId?: string;
+        adapterType?: string;
+        modelId?: string;
+        rateLimitKeywords?: string[];
+        issueCommentOrder?: "newest_first" | "newest_last";
+      }>()
+      .notNull()
+      .default({}),
     runtimeConfig: jsonb("runtime_config").$type<Record<string, unknown>>().notNull().default({}),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
     spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),

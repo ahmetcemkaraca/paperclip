@@ -1,6 +1,6 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
-import { agents, approvals, companies, costEvents, issues } from "@paperclipai/db";
+import { agents, approvals, companies, costEvents, issues, projects } from "@paperclipai/db";
 import { notFound } from "../errors.js";
 import { budgetService } from "./budgets.js";
 
@@ -21,6 +21,19 @@ export function dashboardService(db: Db) {
         .from(agents)
         .where(eq(agents.companyId, companyId))
         .groupBy(agents.status);
+
+      const projectRows = await db
+        .select({
+          id: projects.id,
+          name: projects.name,
+          status: projects.status,
+          progressPercent: projects.progressPercent,
+          targetDate: projects.targetDate,
+        })
+        .from(projects)
+        .where(and(eq(projects.companyId, companyId), isNull(projects.archivedAt)))
+        .orderBy(desc(projects.updatedAt))
+        .limit(8);
 
       const taskRows = await db
         .select({ status: issues.status, count: sql<number>`count(*)` })
@@ -84,6 +97,10 @@ export function dashboardService(db: Db) {
 
       return {
         companyId,
+        projects: projectRows.map((project) => ({
+          ...project,
+          progressPercent: Number(project.progressPercent ?? 0),
+        })),
         agents: {
           active: agentCounts.active,
           running: agentCounts.running,

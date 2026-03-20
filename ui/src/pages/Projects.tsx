@@ -70,6 +70,18 @@ export function Projects() {
               to={projectUrl(project)}
               trailing={
                 <div className="flex items-center gap-3">
+                  <div className="hidden min-w-28 sm:block">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Progress</span>
+                      <span>{project.progressPercent}%</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border/60">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${project.progressPercent}%` }}
+                      />
+                    </div>
+                  </div>
                   {project.targetDate && (
                     <span className="text-xs text-muted-foreground">
                       {formatDate(project.targetDate)}

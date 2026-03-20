@@ -98,9 +98,6 @@ export function CompanySettings() {
       description !== (selectedCompany.description ?? "") ||
       brandColor !== (selectedCompany.brandColor ?? ""));
 
-  const concurrentAgentsDirty =
-    !!selectedCompany && maxConcurrentAgents !== selectedCompany.maxConcurrentAgents;
-
   const systemPromptDirty =
     !!selectedCompany && systemPromptMd !== (selectedCompany.systemPromptMd ?? "");
   const issueCommentOrderDirty =
@@ -472,38 +469,15 @@ export function CompanySettings() {
                 min="1"
                 max="100"
                 value={maxConcurrentAgents}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  setMaxConcurrentAgents(isNaN(val) ? 1 : Math.max(1, Math.min(100, val)));
-                }}
+                onChange={(e) => setMaxConcurrentAgents(parseInt(e.target.value, 10))}
+                onBlur={() => concurrentAgentsMutation.mutate(maxConcurrentAgents)}
                 className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
               />
             </Field>
-            {concurrentAgentsDirty && (
-              <div className="flex items-center gap-2 mt-2">
-                <Button
-                  size="sm"
-                  onClick={() => concurrentAgentsMutation.mutate(maxConcurrentAgents)}
-                  disabled={concurrentAgentsMutation.isPending}
-                >
-                  {concurrentAgentsMutation.isPending ? "Saving..." : "Save"}
-                </Button>
-                {concurrentAgentsMutation.isSuccess && (
-                  <span className="text-xs text-muted-foreground">Saved</span>
-                )}
-                {concurrentAgentsMutation.isError && (
-                  <span className="text-xs text-destructive">
-                    {concurrentAgentsMutation.error instanceof Error
-                      ? concurrentAgentsMutation.error.message
-                      : "Failed to save"}
-                  </span>
-                )}
-              </div>
-            )}
-            {concurrentAgentsMutation.isSuccess && !concurrentAgentsDirty && (
+            {concurrentAgentsMutation.isSuccess && (
               <span className="text-xs text-muted-foreground">Saved</span>
             )}
-            {concurrentAgentsMutation.isError && !concurrentAgentsDirty && (
+            {concurrentAgentsMutation.isError && (
               <span className="text-xs text-destructive">
                 {concurrentAgentsMutation.error instanceof Error
                   ? concurrentAgentsMutation.error.message

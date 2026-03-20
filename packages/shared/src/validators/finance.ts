@@ -28,7 +28,7 @@ export const createFinanceEventSchema = z.object({
   occurredAt: z.string().datetime(),
 }).transform((value) => ({
   ...value,
-  currency: String(value.currency).toUpperCase(),
+  currency: value.currency.toUpperCase(),
 }));
 
 export type CreateFinanceEvent = z.infer<typeof createFinanceEventSchema>;

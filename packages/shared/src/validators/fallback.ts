@@ -1,12 +1,22 @@
 import { z } from "zod";
-import { AGENT_ADAPTER_TYPES } from "../constants.js";
+
+export const DEFAULT_RATE_LIMIT_KEYWORDS = [
+  "rate limit",
+  "rate-limited",
+  "rate limited",
+  "usage limit",
+  "quota exceeded",
+  "too many requests",
+  "throttled",
+  "throttling",
+  "try again later",
+];
 
 export const fallbackConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  adapterId: z.string().min(1).optional().nullable(),
-  adapterType: z.enum(AGENT_ADAPTER_TYPES).optional().nullable(),
-  modelId: z.string().min(1).optional().nullable(),
-  rateLimitKeywords: z.array(z.string().min(1)).optional().nullable(),
+  enabled: z.boolean().optional().default(true),
+  adapterId: z.string().min(1).optional(),
+  adapterType: z.string().min(1).optional(),
+  modelId: z.string().min(1).optional(),
+  rateLimitKeywords: z.array(z.string().min(1)).optional(),
+  issueCommentOrder: z.enum(["newest_first", "newest_last"]).optional(),
 });
-
-export type FallbackConfigInput = z.infer<typeof fallbackConfigSchema>;

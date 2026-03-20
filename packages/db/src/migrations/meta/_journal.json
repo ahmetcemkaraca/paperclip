@@ -281,6 +281,13 @@
       "when": 1773480000000,
       "tag": "0032_company_system_prompt",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1774003200000,
+      "tag": "0038_project_progress_percent",
+      "breakpoints": true
     }
   ]
 }

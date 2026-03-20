@@ -159,6 +159,7 @@ export const APPROVAL_TYPES = [
   "hire_agent",
   "approve_ceo_strategy",
   "update_company_system_prompt",
+  "budget_override_required",
 ] as const;
 export type ApprovalType = (typeof APPROVAL_TYPES)[number];
 
@@ -181,15 +182,6 @@ export type SecretProvider = (typeof SECRET_PROVIDERS)[number];
 
 export const STORAGE_PROVIDERS = ["local_disk", "s3"] as const;
 export type StorageProvider = (typeof STORAGE_PROVIDERS)[number];
-
-export const DEFAULT_RATE_LIMIT_KEYWORDS = [
-  "rate limit",
-  "too many requests",
-  "429",
-  "quota exceeded",
-  "request limit",
-  "retry later",
-] as const;
 
 export const BILLING_TYPES = [
   "metered_api",
@@ -298,6 +290,7 @@ export const LIVE_EVENT_TYPES = [
   "heartbeat.run.log",
   "agent.status",
   "activity.logged",
+  "plugin.ui.updated",
 ] as const;
 export type LiveEventType = (typeof LIVE_EVENT_TYPES)[number];
 
@@ -441,20 +434,6 @@ export const PLUGIN_CAPABILITIES = [
 ] as const;
 export type PluginCapability = (typeof PLUGIN_CAPABILITIES)[number];
 
-export const PLUGIN_UI_SLOT_ENTITY_TYPES = [
-  "company",
-  "project",
-  "issue",
-  "agent",
-  "goal",
-  "comment",
-  "task",
-  "workspace",
-  "plugin",
-  "user",
-] as const;
-export type PluginUiSlotEntityType = (typeof PLUGIN_UI_SLOT_ENTITY_TYPES)[number];
-
 /**
  * UI extension slot types. Each slot type corresponds to a mount point in the
  * Paperclip UI where plugin components can be rendered.
@@ -478,6 +457,31 @@ export const PLUGIN_UI_SLOT_TYPES = [
 ] as const;
 export type PluginUiSlotType = (typeof PLUGIN_UI_SLOT_TYPES)[number];
 
+export const PLUGIN_UI_SLOT_ENTITY_TYPES = [
+  "company",
+  "project",
+  "issue",
+  "comment",
+  "agent",
+  "goal",
+  "approval",
+] as const;
+export type PluginUiSlotEntityType = (typeof PLUGIN_UI_SLOT_ENTITY_TYPES)[number];
+
+export const PLUGIN_RESERVED_COMPANY_ROUTE_SEGMENTS = [
+  "agents",
+  "approvals",
+  "budget",
+  "dashboard",
+  "files",
+  "goals",
+  "issues",
+  "plugins",
+  "projects",
+  "settings",
+  "workspaces",
+] as const;
+
 /**
  * Launcher placement zones describe where a plugin-owned launcher can appear
  * in the host UI. These are intentionally aligned with current slot surfaces
@@ -497,16 +501,17 @@ export const PLUGIN_LAUNCHER_PLACEMENT_ZONES = [
   "contextMenuItem",
   "commentAnnotation",
   "commentContextMenuItem",
+  "settingsPage",
 ] as const;
 export type PluginLauncherPlacementZone = (typeof PLUGIN_LAUNCHER_PLACEMENT_ZONES)[number];
 
 export const PLUGIN_LAUNCHER_ACTIONS = [
   "navigate",
-  "performAction",
   "openModal",
   "openDrawer",
   "openPopover",
-  "openExternal",
+  "performAction",
+  "deepLink",
 ] as const;
 export type PluginLauncherAction = (typeof PLUGIN_LAUNCHER_ACTIONS)[number];
 
@@ -522,68 +527,47 @@ export const PLUGIN_LAUNCHER_RENDER_ENVIRONMENTS = [
 ] as const;
 export type PluginLauncherRenderEnvironment = (typeof PLUGIN_LAUNCHER_RENDER_ENVIRONMENTS)[number];
 
-export const PLUGIN_RESERVED_COMPANY_ROUTE_SEGMENTS = [
-  "agents",
-  "projects",
-  "issues",
-  "goals",
-  "settings",
-  "plugins",
-  "billing",
-  "activity",
-  "dashboard",
-  "api",
-  "auth",
-  "login",
-  "logout",
-  "invite",
-  "join",
-] as const;
-
 export const PLUGIN_STATE_SCOPE_KINDS = [
   "instance",
   "company",
   "project",
   "project_workspace",
+  "workspace",
   "agent",
   "issue",
   "goal",
   "run",
+  "task",
 ] as const;
 export type PluginStateScopeKind = (typeof PLUGIN_STATE_SCOPE_KINDS)[number];
 
-export const PLUGIN_JOB_STATUSES = ["active", "paused", "error"] as const;
+export const PLUGIN_JOB_STATUSES = ["active", "paused", "failed"] as const;
 export type PluginJobStatus = (typeof PLUGIN_JOB_STATUSES)[number];
 
-export const PLUGIN_JOB_RUN_STATUSES = ["pending", "running", "succeeded", "failed"] as const;
+export const PLUGIN_JOB_RUN_STATUSES = [
+  "pending",
+  "queued",
+  "running",
+  "succeeded",
+  "failed",
+  "cancelled",
+] as const;
 export type PluginJobRunStatus = (typeof PLUGIN_JOB_RUN_STATUSES)[number];
 
-export const PLUGIN_JOB_RUN_TRIGGERS = ["scheduled", "manual"] as const;
+export const PLUGIN_JOB_RUN_TRIGGERS = ["manual", "schedule", "scheduled", "retry"] as const;
 export type PluginJobRunTrigger = (typeof PLUGIN_JOB_RUN_TRIGGERS)[number];
 
-export const PLUGIN_WEBHOOK_DELIVERY_STATUSES = ["pending", "processing", "succeeded", "failed"] as const;
+export const PLUGIN_WEBHOOK_DELIVERY_STATUSES = ["pending", "success", "failed"] as const;
 export type PluginWebhookDeliveryStatus = (typeof PLUGIN_WEBHOOK_DELIVERY_STATUSES)[number];
 
 export const PLUGIN_EVENT_TYPES = [
-  "plugin.loaded",
-  "plugin.enabled",
-  "plugin.disabled",
-  "plugin.unloaded",
-  "plugin.status_changed",
-  "plugin.error",
-  "plugin.upgrade_pending",
-  "plugin.worker_started",
-  "plugin.worker_stopped",
   "issue.created",
   "issue.updated",
-  "issue.comment.created",
-  "project.created",
-  "project.updated",
-  "agent.created",
-  "agent.updated",
-  "goal.created",
-  "goal.updated",
-  "activity.logged",
+  "plugin.installed",
+  "plugin.uninstalled",
+  "plugin.enabled",
+  "plugin.disabled",
+  "plugin.state.changed",
 ] as const;
 export type PluginEventType = (typeof PLUGIN_EVENT_TYPES)[number];
 
@@ -592,5 +576,10 @@ export const PLUGIN_BRIDGE_ERROR_CODES = [
   "invalid_manifest",
   "unsupported_api_version",
   "missing_capability",
+  "WORKER_UNAVAILABLE",
+  "CAPABILITY_DENIED",
+  "TIMEOUT",
+  "WORKER_ERROR",
+  "UNKNOWN",
 ] as const;
 export type PluginBridgeErrorCode = (typeof PLUGIN_BRIDGE_ERROR_CODES)[number];

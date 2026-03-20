@@ -165,6 +165,7 @@ function makeIssue(id: string, isUnreadForMe: boolean): Issue {
 
 const dashboard: DashboardSummary = {
   companyId: "company-1",
+  projects: [],
   agents: {
     active: 1,
     running: 0,

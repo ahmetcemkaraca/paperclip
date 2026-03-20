@@ -1,65 +1,51 @@
 import { api } from "../api/client";
 
-type PushSubscriptionJSON = {
-  endpoint: string;
-  expirationTime: number | null;
-  keys: {
-    p256dh: string;
-    auth: string;
-  };
-};
+function base64UrlToUint8Array(value: string) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  const bytes = new Uint8Array(raw.length);
+  for (let index = 0; index < raw.length; index += 1) {
+    bytes[index] = raw.charCodeAt(index);
+  }
+  return bytes;
+}
 
-export function isNotificationsSupported(): boolean {
-  return typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
+export function isNotificationsSupported() {
+  return typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
 }
 
 export function getNotificationPermission(): NotificationPermission {
-  return typeof window === "undefined" || !("Notification" in window) ? "denied" : Notification.permission;
+  if (typeof Notification === "undefined") return "default";
+  return Notification.permission;
 }
 
-export async function getPushSubscription(): Promise<PushSubscription | null> {
+export async function getPushSubscription() {
   if (!isNotificationsSupported()) return null;
   const registration = await navigator.serviceWorker.ready;
   return registration.pushManager.getSubscription();
 }
 
-export async function subscribeToPushNotifications(vapidPublicKey: string): Promise<PushSubscriptionJSON> {
-  if (!isNotificationsSupported()) {
-    throw new Error("Push notifications are not supported in this browser");
-  }
-
+export async function subscribeToPushNotifications(vapidPublicKey: string) {
   const registration = await navigator.serviceWorker.ready;
-  const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-  const subscription = await registration.pushManager.subscribe({
+  return registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey,
+    applicationServerKey: base64UrlToUint8Array(vapidPublicKey),
   });
-  return subscription.toJSON() as unknown as PushSubscriptionJSON;
 }
 
-export async function unsubscribeFromPushNotifications(): Promise<void> {
+export async function unsubscribeFromPushNotifications() {
   const subscription = await getPushSubscription();
   if (subscription) {
     await subscription.unsubscribe();
   }
 }
 
-export async function fetchVapidPublicKey(): Promise<string> {
+export async function sendSubscriptionToServer(companyId: string, subscription: PushSubscription) {
+  return api.post(`/companies/${companyId}/push-subscriptions`, subscription.toJSON());
+}
+
+export async function fetchVapidPublicKey() {
   const response = await api.get<{ publicKey: string }>("/notifications/vapid-public-key");
   return response.publicKey;
-}
-
-export async function sendSubscriptionToServer(companyId: string, subscription: PushSubscriptionJSON): Promise<void> {
-  await api.post(`/companies/${companyId}/notifications/subscriptions`, { subscription });
-}
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
 }

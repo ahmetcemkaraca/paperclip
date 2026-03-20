@@ -25,7 +25,15 @@ export const companiesApi = {
     data: Partial<
       Pick<
         Company,
-        "name" | "description" | "status" | "budgetMonthlyCents" | "requireBoardApprovalForNewAgents" | "brandColor" | "logoAssetId" | "fallbackConfig"
+        | "name"
+        | "description"
+        | "status"
+        | "budgetMonthlyCents"
+        | "requireBoardApprovalForNewAgents"
+        | "maxConcurrentAgents"
+        | "brandColor"
+        | "logoAssetId"
+        | "fallbackConfig"
       >
     >,
   ) => api.patch<Company>(`/companies/${companyId}`, data),

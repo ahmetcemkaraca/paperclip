@@ -106,6 +106,14 @@ export const agentsApi = {
     companyId?: string,
   ) =>
     api.patch<Agent>(agentPath(id, companyId, "/permissions"), data),
+  batchUpdate: (
+    companyId: string,
+    data: {
+      agentIds: string[];
+      adapterType?: string;
+      runtimeConfig?: Record<string, unknown>;
+    },
+  ) => api.post<{ updated: number }>(`/companies/${companyId}/agents/batch-update`, data),
   pause: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/pause"), {}),
   resume: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/resume"), {}),
   terminate: (id: string, companyId?: string) => api.post<Agent>(agentPath(id, companyId, "/terminate"), {}),
@@ -134,11 +142,7 @@ export const agentsApi = {
       `/companies/${companyId}/adapters/${type}/test-environment`,
       data,
     ),
-  invoke: (
-    id: string,
-    companyId?: string,
-    data: { forceFreshSession?: boolean } = {},
-  ) => api.post<HeartbeatRun>(agentPath(id, companyId, "/heartbeat/invoke"), data),
+  invoke: (id: string, companyId?: string) => api.post<HeartbeatRun>(agentPath(id, companyId, "/heartbeat/invoke"), {}),
   wakeup: (
     id: string,
     data: {

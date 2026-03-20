@@ -54,7 +54,7 @@ function OverviewContent({
   onUpdate,
   imageUploadHandler,
 }: {
-  project: { description: string | null; status: string; targetDate: string | null };
+  project: { description: string | null; status: string; targetDate: string | null; progressPercent: number };
   onUpdate: (data: Record<string, unknown>) => void;
   imageUploadHandler?: (file: File) => Promise<string>;
 }) {
@@ -75,6 +75,18 @@ function OverviewContent({
           <span className="text-muted-foreground">Status</span>
           <div className="mt-1">
             <StatusBadge status={project.status} />
+          </div>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Progress</span>
+          <div className="mt-2 space-y-1.5">
+            <div className="h-2 overflow-hidden rounded-full bg-border/60">
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${project.progressPercent}%` }}
+              />
+            </div>
+            <p className="text-sm font-medium">{project.progressPercent}% complete</p>
           </div>
         </div>
         {project.targetDate && (
@@ -516,6 +528,18 @@ export function ProjectDetail() {
             as="h2"
             className="text-xl font-bold"
           />
+          <div className="max-w-sm space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Progress</span>
+              <span className="font-medium text-foreground">{project.progressPercent}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-border/60">
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${project.progressPercent}%` }}
+              />
+            </div>
+          </div>
           {project.pauseReason === "budget" ? (
             <div className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-red-200">
               <span className="h-2 w-2 rounded-full bg-red-400" />

@@ -23,6 +23,10 @@ export {
   type ProposeCompanySystemPrompt,
 } from "./company.js";
 export {
+  fallbackConfigSchema,
+  DEFAULT_RATE_LIMIT_KEYWORDS,
+} from "./fallback.js";
+export {
   portabilityIncludeSchema,
   portabilitySecretRequirementSchema,
   portabilityCompanyManifestEntrySchema,
@@ -44,7 +48,6 @@ export {
   createAgentSchema,
   createAgentHireSchema,
   updateAgentSchema,
-  batchUpdateAgentsSchema,
   updateAgentInstructionsPathSchema,
   createAgentKeySchema,
   wakeAgentSchema,
@@ -52,16 +55,17 @@ export {
   testAdapterEnvironmentSchema,
   agentPermissionsSchema,
   updateAgentPermissionsSchema,
+  batchUpdateAgentsSchema,
   type CreateAgent,
   type CreateAgentHire,
   type UpdateAgent,
-  type BatchUpdateAgents,
   type UpdateAgentInstructionsPath,
   type CreateAgentKey,
   type WakeAgent,
   type ResetAgentSession,
   type TestAdapterEnvironment,
   type UpdateAgentPermissions,
+  type BatchUpdateAgents,
 } from "./agent.js";
 
 export {
@@ -161,11 +165,6 @@ export {
   createFinanceEventSchema,
   type CreateFinanceEvent,
 } from "./finance.js";
-
-export {
-  fallbackConfigSchema,
-  type FallbackConfigInput,
-} from "./fallback.js";
 
 export {
   createAssetImageMetadataSchema,

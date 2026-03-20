@@ -57,6 +57,7 @@ export interface Project {
   name: string;
   description: string | null;
   status: ProjectStatus;
+  progressPercent: number;
   leadAgentId: string | null;
   targetDate: string | null;
   color: string | null;

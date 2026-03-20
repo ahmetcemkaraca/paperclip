@@ -6,6 +6,7 @@ import {
   AGENT_STATUSES,
 } from "../constants.js";
 import { envConfigSchema } from "./secret.js";
+import { fallbackConfigSchema } from "./fallback.js";
 
 export const agentPermissionsSchema = z.object({
   canCreateAgents: z.boolean().optional(),
@@ -34,6 +35,7 @@ export const createAgentSchema = z.object({
   capabilities: z.string().optional().nullable(),
   adapterType: z.enum(AGENT_ADAPTER_TYPES).optional().default("process"),
   adapterConfig: adapterConfigSchema.optional().default({}),
+  fallbackConfig: fallbackConfigSchema.optional().default({}),
   runtimeConfig: z.record(z.unknown()).optional().default({}),
   budgetMonthlyCents: z.number().int().nonnegative().optional().default(0),
   permissions: agentPermissionsSchema.optional(),
@@ -59,14 +61,6 @@ export const updateAgentSchema = createAgentSchema
   });
 
 export type UpdateAgent = z.infer<typeof updateAgentSchema>;
-
-export const batchUpdateAgentsSchema = z.object({
-  agentIds: z.array(z.string().uuid()).default([]),
-  adapterType: z.enum(AGENT_ADAPTER_TYPES).optional(),
-  runtimeConfig: z.record(z.string(), z.unknown()).optional(),
-});
-
-export type BatchUpdateAgents = z.infer<typeof batchUpdateAgentsSchema>;
 
 export const updateAgentInstructionsPathSchema = z.object({
   path: z.string().trim().min(1).nullable(),
@@ -118,3 +112,16 @@ export const updateAgentPermissionsSchema = z.object({
 );
 
 export type UpdateAgentPermissions = z.infer<typeof updateAgentPermissionsSchema>;
+
+export const batchUpdateAgentsSchema = z.object({
+  agentIds: z.array(z.string().uuid()).min(1),
+  adapterType: z.enum(AGENT_ADAPTER_TYPES).optional(),
+  runtimeConfig: z.record(z.unknown()).optional(),
+}).refine(
+  (value) => value.adapterType !== undefined || value.runtimeConfig !== undefined,
+  {
+    message: "At least one batch update field must be provided",
+  },
+);
+
+export type BatchUpdateAgents = z.infer<typeof batchUpdateAgentsSchema>;
