@@ -1247,7 +1247,6 @@ function AgentConfigurePage({
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
-<<<<<<< HEAD
   updatePermissions: { mutate: (patch: Partial<Agent["permissions"]>) => void; isPending: boolean };
 }) {
   const queryClient = useQueryClient();
@@ -1354,7 +1353,6 @@ function ConfigurationTab({
   onSaveActionChange: (save: (() => void) | null) => void;
   onCancelActionChange: (cancel: (() => void) | null) => void;
   onSavingChange: (saving: boolean) => void;
-<<<<<<< HEAD
   updatePermissions: { mutate: (patch: Partial<Agent["permissions"]>) => void; isPending: boolean };
 }) {
   const queryClient = useQueryClient();
@@ -1452,41 +1450,6 @@ function ConfigurationTab({
           />
           <div className="text-xs text-muted-foreground leading-5">
             This controls whether the agent can wake, invoke peers, or assign tasks through the agent APIs.
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-4 text-sm">
-        <div className="space-y-1">
-          <div>Can assign tasks</div>
-          <p className="text-xs text-muted-foreground">
-            {taskAssignHint}
-          </p>
-        </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={canAssignTasks}
-              className={cn(
-                "relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-                canAssignTasks
-                  ? "bg-green-500 focus-visible:ring-green-500/70"
-                  : "bg-input/50 focus-visible:ring-ring",
-              )}
-              onClick={() =>
-                updatePermissions.mutate({
-                  canCreateAgents,
-                  canAssignTasks: !canAssignTasks,
-                })
-              }
-              disabled={updatePermissions.isPending || taskAssignLocked}
-            >
-              <span
-                className={cn(
-                  "inline-block h-4 w-4 transform rounded-full bg-background transition-transform",
-                  canAssignTasks ? "translate-x-6" : "translate-x-1",
-                )}
-              />
-            </button>
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ import type {
 export interface AgentPermissions {
   canCreateAgents: boolean;
   canInvokeOtherAgents: boolean;
+  canAssignTasks: boolean;
 }
 
 export interface AgentAccessState {

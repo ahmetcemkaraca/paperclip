@@ -26,6 +26,7 @@ import {
   agentNotificationService,
   accessService,
   approvalService,
+  budgetService,
   heartbeatService,
   issueApprovalService,
   issueService,
@@ -61,6 +62,7 @@ export function agentRoutes(db: Db) {
   const svc = agentService(db);
   const access = accessService(db);
   const approvalsSvc = approvalService(db);
+  const budgets = budgetService(db);
   const heartbeat = heartbeatService(db);
   const issueApprovalsSvc = issueApprovalService(db);
   const secretsSvc = secretService(db);
