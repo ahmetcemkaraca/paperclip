@@ -565,4 +565,52 @@ export function registerCompanyCommands(program: Command): void {
         }
       }),
   );
+
+  addCommonClientOptions(
+    company
+      .command("pause-all")
+      .description("Pause all companies (maintenance mode - no runs will execute)")
+      .action(async (opts: CompanyCommandOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const result = await ctx.api.post<{ pausedCount: number; paused: string[] }>(
+            "/api/companies/instance/pause-all",
+            {},
+          );
+          if (!result) {
+            throw new Error("Pause-all request returned no data");
+          }
+          printOutput(
+            { ok: true, pausedCount: result.pausedCount, paused: result.paused },
+            { json: ctx.json },
+          );
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
+
+  addCommonClientOptions(
+    company
+      .command("resume-all")
+      .description("Resume all paused companies")
+      .action(async (opts: CompanyCommandOptions) => {
+        try {
+          const ctx = resolveCommandContext(opts);
+          const result = await ctx.api.post<{ resumedCount: number; resumed: string[] }>(
+            "/api/companies/instance/resume-all",
+            {},
+          );
+          if (!result) {
+            throw new Error("Resume-all request returned no data");
+          }
+          printOutput(
+            { ok: true, resumedCount: result.resumedCount, resumed: result.resumed },
+            { json: ctx.json },
+          );
+        } catch (err) {
+          handleCommandError(err);
+        }
+      }),
+  );
 }

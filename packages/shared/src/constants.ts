@@ -30,6 +30,7 @@ export const AGENT_ADAPTER_TYPES = [
   "kiro_cli",
   "opencode_local",
   "pi_local",
+  "hermes_local",
   "cursor",
   "openclaw_gateway",
   "copilot_cli",

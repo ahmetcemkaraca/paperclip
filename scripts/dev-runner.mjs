@@ -55,12 +55,23 @@ const tailscaleAuthFlagNames = new Set([
   "--authenticated-private",
 ]);
 
+const pauseCompaniesFlagNames = new Set([
+  "--pause",
+  "--pause-companies",
+  "--pause-all",
+]);
+
 let tailscaleAuth = false;
+let pauseCompanies = false;
 const forwardedArgs = [];
 
 for (const arg of cliArgs) {
   if (tailscaleAuthFlagNames.has(arg)) {
     tailscaleAuth = true;
+    continue;
+  }
+  if (pauseCompaniesFlagNames.has(arg)) {
+    pauseCompanies = true;
     continue;
   }
   forwardedArgs.push(arg);
@@ -95,6 +106,10 @@ if (tailscaleAuth) {
   console.log("[paperclip] dev mode: authenticated/private (tailscale-friendly) on 0.0.0.0");
 } else {
   console.log("[paperclip] dev mode: local_trusted (default)");
+}
+
+if (pauseCompanies) {
+  console.log("[paperclip] companies will be paused on startup (maintenance mode)");
 }
 
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
@@ -577,8 +592,37 @@ process.on("SIGTERM", () => {
   void shutdown("SIGTERM");
 });
 
+async function pauseAllCompanies() {
+  const serverPort = env.PORT ?? process.env.PORT ?? "3100";
+  const maxAttempts = 10;
+  const delayMs = 1000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${serverPort}/api/companies/instance/pause-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`[paperclip] paused ${result.pausedCount} companies on startup`);
+        return;
+      }
+    } catch {
+      // Server not ready yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  console.log("[paperclip] warning: could not pause companies on startup (server not ready)");
+}
+
 await maybePreflightMigrations();
 await startServerChild();
+
+if (pauseCompanies) {
+  await pauseAllCompanies();
+}
+
 installDevIntervals();
 
 if (mode === "watch") {

@@ -388,6 +388,50 @@ export function companyRoutes(db: Db, storage?: StorageService) {
     res.json(company);
   });
 
+  router.post("/instance/pause-all", async (req, res) => {
+    assertBoard(req);
+    const allCompanies = await svc.list();
+    const paused = [];
+    for (const company of allCompanies) {
+      if (company.status === "active") {
+        await svc.pause(company.id);
+        paused.push(company.id);
+      }
+    }
+    await logActivity(db, {
+      companyId: paused[0] ?? "instance",
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "instance.all_companies_paused",
+      entityType: "instance",
+      entityId: "all",
+      details: { pausedCount: paused.length },
+    });
+    res.json({ pausedCount: paused.length, paused });
+  });
+
+  router.post("/instance/resume-all", async (req, res) => {
+    assertBoard(req);
+    const allCompanies = await svc.list();
+    const resumed = [];
+    for (const company of allCompanies) {
+      if (company.status === "paused") {
+        await svc.resume(company.id);
+        resumed.push(company.id);
+      }
+    }
+    await logActivity(db, {
+      companyId: resumed[0] ?? "instance",
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "instance.all_companies_resumed",
+      entityType: "instance",
+      entityId: "all",
+      details: { resumedCount: resumed.length },
+    });
+    res.json({ resumedCount: resumed.length, resumed });
+  });
+
   router.post("/:companyId/archive", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
