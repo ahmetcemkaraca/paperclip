@@ -2718,6 +2718,17 @@ const runtimeSkillEntries = await companySkills.listRuntimeSkillEntries(agent.co
     const agent = await getAgent(agentId);
     if (!agent) throw notFound("Agent not found");
 
+    const company = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.id, agent.companyId))
+      .then((rows) => rows[0] ?? null);
+    if (!company) throw notFound("Company not found");
+
+    if (company.status === "paused" || company.status === "archived") {
+      throw conflict("Company is not active. Runs are suspended in maintenance mode.", { companyStatus: company.status });
+    }
+
     if (
       agent.status === "paused" ||
       agent.status === "terminated" ||
@@ -3323,11 +3334,15 @@ const runtimeSkillEntries = await companySkills.listRuntimeSkillEntries(agent.co
 
     tickTimers: async (now = new Date()) => {
       const allAgents = await db.select().from(agents);
+      const companyRows = await db.select().from(companies);
+      const companyStatusMap = new Map(companyRows.map((c) => [c.id, c.status]));
       let checked = 0;
       let enqueued = 0;
       let skipped = 0;
 
       for (const agent of allAgents) {
+        const companyStatus = companyStatusMap.get(agent.companyId);
+        if (companyStatus === "paused" || companyStatus === "archived") continue;
         if (agent.status === "paused" || agent.status === "terminated" || agent.status === "pending_approval") continue;
         const policy = parseHeartbeatPolicy(agent);
         if (!policy.enabled || policy.intervalSec <= 0) continue;

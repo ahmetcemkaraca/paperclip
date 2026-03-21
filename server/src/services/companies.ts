@@ -128,6 +128,22 @@ export function companyService(db: Db) {
         .returning()
         .then((rows) => rows[0] ?? null),
 
+    pause: (id: string) =>
+      db
+        .update(companies)
+        .set({ status: "paused", pausedAt: new Date(), updatedAt: new Date() })
+        .where(eq(companies.id, id))
+        .returning()
+        .then((rows) => rows[0] ?? null),
+
+    resume: (id: string) =>
+      db
+        .update(companies)
+        .set({ status: "active", pauseReason: null, pausedAt: null, updatedAt: new Date() })
+        .where(eq(companies.id, id))
+        .returning()
+        .then((rows) => rows[0] ?? null),
+
     remove: (id: string) =>
       db.transaction(async (tx) => {
         // Delete from child tables in dependency order

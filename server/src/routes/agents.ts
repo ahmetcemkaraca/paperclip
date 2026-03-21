@@ -91,7 +91,6 @@ export function agentRoutes(db: Db) {
   const workspaceOperations = workspaceOperationService(db);
   const instanceSettings = instanceSettingsService(db);
   const strictSecretsMode = process.env.PAPERCLIP_SECRETS_STRICT_MODE === "true";
-  const notificationsSvc = agentNotificationService(db);
 
   async function getCurrentUserRedactionOptions() {
     return {
@@ -989,21 +988,6 @@ export function agentRoutes(db: Db) {
     );
   });
 
-  router.get("/agents/me/notifications", async (req, res) => {
-    if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.companyId) {
-      res.status(401).json({ error: "Agent authentication required" });
-      return;
-    }
-
-    const rawLimit = typeof req.query.limit === "string" ? Number.parseInt(req.query.limit, 10) : undefined;
-    const items = await notificationsSvc.listMentions({
-      companyId: req.actor.companyId,
-      agentId: req.actor.agentId,
-      limit: Number.isFinite(rawLimit) ? rawLimit : undefined,
-    });
-    res.json(items);
-  });
-
   router.get("/agents/:id", async (req, res) => {
     const id = req.params.id as string;
     const agent = await svc.getById(id);
@@ -1413,18 +1397,8 @@ export function agentRoutes(db: Db) {
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-      const isSelf = actorAgent.id === existing.id;
-      const isCeo = actorAgent.role === "ceo";
-      if (!isSelf && !isCeo) {
-        res.status(403).json({ error: "Only CEO can manage other agents" });
-        return;
-      }
-      if (
-        isSelf &&
-        Object.prototype.hasOwnProperty.call(req.body, "canCreateAgents") &&
-        !isCeo
-      ) {
-        res.status(403).json({ error: "Only CEO can manage canCreateAgents" });
+      if (actorAgent.role !== "ceo") {
+        res.status(403).json({ error: "Only CEO can manage permissions" });
         return;
       }
     }
@@ -1455,3 +1429,851 @@ export function agentRoutes(db: Db) {
       agentId: actor.agentId,
       runId: actor.runId,
       action: "agent.permissions_updated",
+      entityType: "agent",
+      entityId: agent.id,
+      details: {
+        canCreateAgents: agent.permissions?.canCreateAgents ?? false,
+        canAssignTasks: effectiveCanAssignTasks,
+      },
+    });
+
+    res.json(await buildAgentDetail(agent));
+  });
+
+  router.patch("/agents/:id/instructions-path", validate(updateAgentInstructionsPathSchema), async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    await assertCanManageInstructionsPath(req, existing);
+
+    const existingAdapterConfig = asRecord(existing.adapterConfig) ?? {};
+    const explicitKey = asNonEmptyString(req.body.adapterConfigKey);
+    const defaultKey = DEFAULT_INSTRUCTIONS_PATH_KEYS[existing.adapterType] ?? null;
+    const adapterConfigKey = explicitKey ?? defaultKey;
+    if (!adapterConfigKey) {
+      res.status(422).json({
+        error: `No default instructions path key for adapter type '${existing.adapterType}'. Provide adapterConfigKey.`,
+      });
+      return;
+    }
+
+    const nextAdapterConfig: Record<string, unknown> = { ...existingAdapterConfig };
+    if (req.body.path === null) {
+      delete nextAdapterConfig[adapterConfigKey];
+    } else {
+      nextAdapterConfig[adapterConfigKey] = resolveInstructionsFilePath(req.body.path, existingAdapterConfig);
+    }
+
+    const syncedAdapterConfig = syncInstructionsBundleConfigFromFilePath(existing, nextAdapterConfig);
+    const normalizedAdapterConfig = await secretsSvc.normalizeAdapterConfigForPersistence(
+      existing.companyId,
+      syncedAdapterConfig,
+      { strictMode: strictSecretsMode },
+    );
+    const actor = getActorInfo(req);
+    const agent = await svc.update(
+      id,
+      { adapterConfig: normalizedAdapterConfig },
+      {
+        recordRevision: {
+          createdByAgentId: actor.agentId,
+          createdByUserId: actor.actorType === "user" ? actor.actorId : null,
+          source: "instructions_path_patch",
+        },
+      },
+    );
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    const updatedAdapterConfig = asRecord(agent.adapterConfig) ?? {};
+    const pathValue = asNonEmptyString(updatedAdapterConfig[adapterConfigKey]);
+
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "agent.instructions_path_updated",
+      entityType: "agent",
+      entityId: agent.id,
+      details: {
+        adapterConfigKey,
+        path: pathValue,
+        cleared: req.body.path === null,
+      },
+    });
+
+    res.json({
+      agentId: agent.id,
+      adapterType: agent.adapterType,
+      adapterConfigKey,
+      path: pathValue,
+    });
+  });
+
+  router.get("/agents/:id/instructions-bundle", async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanReadAgent(req, existing);
+    res.json(await instructions.getBundle(existing));
+  });
+
+  router.patch("/agents/:id/instructions-bundle", validate(updateAgentInstructionsBundleSchema), async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanManageInstructionsPath(req, existing);
+
+    const actor = getActorInfo(req);
+    const { bundle, adapterConfig } = await instructions.updateBundle(existing, req.body);
+    const normalizedAdapterConfig = await secretsSvc.normalizeAdapterConfigForPersistence(
+      existing.companyId,
+      adapterConfig,
+      { strictMode: strictSecretsMode },
+    );
+    await svc.update(
+      id,
+      { adapterConfig: normalizedAdapterConfig },
+      {
+        recordRevision: {
+          createdByAgentId: actor.agentId,
+          createdByUserId: actor.actorType === "user" ? actor.actorId : null,
+          source: "instructions_bundle_patch",
+        },
+      },
+    );
+
+    await logActivity(db, {
+      companyId: existing.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "agent.instructions_bundle_updated",
+      entityType: "agent",
+      entityId: existing.id,
+      details: {
+        mode: bundle.mode,
+        rootPath: bundle.rootPath,
+        entryFile: bundle.entryFile,
+        clearLegacyPromptTemplate: req.body.clearLegacyPromptTemplate === true,
+      },
+    });
+
+    res.json(bundle);
+  });
+
+  router.get("/agents/:id/instructions-bundle/file", async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanReadAgent(req, existing);
+
+    const relativePath = typeof req.query.path === "string" ? req.query.path : "";
+    if (!relativePath.trim()) {
+      res.status(422).json({ error: "Query parameter 'path' is required" });
+      return;
+    }
+
+    res.json(await instructions.readFile(existing, relativePath));
+  });
+
+  router.put("/agents/:id/instructions-bundle/file", validate(upsertAgentInstructionsFileSchema), async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanManageInstructionsPath(req, existing);
+
+    const actor = getActorInfo(req);
+    const result = await instructions.writeFile(existing, req.body.path, req.body.content, {
+      clearLegacyPromptTemplate: req.body.clearLegacyPromptTemplate,
+    });
+    const normalizedAdapterConfig = await secretsSvc.normalizeAdapterConfigForPersistence(
+      existing.companyId,
+      result.adapterConfig,
+      { strictMode: strictSecretsMode },
+    );
+    await svc.update(
+      id,
+      { adapterConfig: normalizedAdapterConfig },
+      {
+        recordRevision: {
+          createdByAgentId: actor.agentId,
+          createdByUserId: actor.actorType === "user" ? actor.actorId : null,
+          source: "instructions_bundle_file_put",
+        },
+      },
+    );
+
+    await logActivity(db, {
+      companyId: existing.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "agent.instructions_file_updated",
+      entityType: "agent",
+      entityId: existing.id,
+      details: {
+        path: result.file.path,
+        size: result.file.size,
+        clearLegacyPromptTemplate: req.body.clearLegacyPromptTemplate === true,
+      },
+    });
+
+    res.json(result.file);
+  });
+
+  router.delete("/agents/:id/instructions-bundle/file", async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanManageInstructionsPath(req, existing);
+
+    const relativePath = typeof req.query.path === "string" ? req.query.path : "";
+    if (!relativePath.trim()) {
+      res.status(422).json({ error: "Query parameter 'path' is required" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    const result = await instructions.deleteFile(existing, relativePath);
+    await logActivity(db, {
+      companyId: existing.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "agent.instructions_file_deleted",
+      entityType: "agent",
+      entityId: existing.id,
+      details: {
+        path: relativePath,
+      },
+    });
+
+    res.json(result.bundle);
+  });
+
+  router.patch("/agents/:id", validate(updateAgentSchema), async (req, res) => {
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    await assertCanUpdateAgent(req, existing);
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "permissions")) {
+      res.status(422).json({ error: "Use /api/agents/:id/permissions for permission changes" });
+      return;
+    }
+
+    const patchData = { ...(req.body as Record<string, unknown>) };
+    if (Object.prototype.hasOwnProperty.call(patchData, "adapterConfig")) {
+      const adapterConfig = asRecord(patchData.adapterConfig);
+      if (!adapterConfig) {
+        res.status(422).json({ error: "adapterConfig must be an object" });
+        return;
+      }
+      const changingInstructionsPath = Object.keys(adapterConfig).some((key) =>
+        KNOWN_INSTRUCTIONS_PATH_KEYS.has(key),
+      );
+      if (changingInstructionsPath) {
+        await assertCanManageInstructionsPath(req, existing);
+      }
+      patchData.adapterConfig = adapterConfig;
+    }
+
+    const requestedAdapterType =
+      typeof patchData.adapterType === "string" ? patchData.adapterType : existing.adapterType;
+    const touchesAdapterConfiguration =
+      Object.prototype.hasOwnProperty.call(patchData, "adapterType") ||
+      Object.prototype.hasOwnProperty.call(patchData, "adapterConfig");
+    if (touchesAdapterConfiguration) {
+      const rawEffectiveAdapterConfig = Object.prototype.hasOwnProperty.call(patchData, "adapterConfig")
+        ? (asRecord(patchData.adapterConfig) ?? {})
+        : (asRecord(existing.adapterConfig) ?? {});
+      const effectiveAdapterConfig = applyCreateDefaultsByAdapterType(
+        requestedAdapterType,
+        rawEffectiveAdapterConfig,
+      );
+      const normalizedEffectiveAdapterConfig = await secretsSvc.normalizeAdapterConfigForPersistence(
+        existing.companyId,
+        effectiveAdapterConfig,
+        { strictMode: strictSecretsMode },
+      );
+      patchData.adapterConfig = syncInstructionsBundleConfigFromFilePath(existing, normalizedEffectiveAdapterConfig);
+    }
+    if (touchesAdapterConfiguration && requestedAdapterType === "opencode_local") {
+      const effectiveAdapterConfig = asRecord(patchData.adapterConfig) ?? {};
+      await assertAdapterConfigConstraints(
+        existing.companyId,
+        requestedAdapterType,
+        effectiveAdapterConfig,
+      );
+    }
+
+    const actor = getActorInfo(req);
+    const agent = await svc.update(id, patchData, {
+      recordRevision: {
+        createdByAgentId: actor.agentId,
+        createdByUserId: actor.actorType === "user" ? actor.actorId : null,
+        source: "patch",
+      },
+    });
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "agent.updated",
+      entityType: "agent",
+      entityId: agent.id,
+      details: summarizeAgentUpdateDetails(patchData),
+    });
+
+    res.json(agent);
+  });
+
+  router.post("/agents/:id/pause", async (req, res) => {
+    assertBoard(req);
+    const id = req.params.id as string;
+    const agent = await svc.pause(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    await heartbeat.cancelActiveForAgent(id);
+
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "agent.paused",
+      entityType: "agent",
+      entityId: agent.id,
+    });
+
+    res.json(agent);
+  });
+
+  router.post("/agents/:id/resume", async (req, res) => {
+    assertBoard(req);
+    const id = req.params.id as string;
+    const agent = await svc.resume(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "agent.resumed",
+      entityType: "agent",
+      entityId: agent.id,
+    });
+
+    res.json(agent);
+  });
+
+  router.post("/agents/:id/terminate", async (req, res) => {
+    assertBoard(req);
+    const id = req.params.id as string;
+    const agent = await svc.terminate(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    await heartbeat.cancelActiveForAgent(id);
+
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "agent.terminated",
+      entityType: "agent",
+      entityId: agent.id,
+    });
+
+    res.json(agent);
+  });
+
+  router.delete("/agents/:id", async (req, res) => {
+    assertBoard(req);
+    const id = req.params.id as string;
+    const agent = await svc.remove(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "agent.deleted",
+      entityType: "agent",
+      entityId: agent.id,
+    });
+
+    res.json({ ok: true });
+  });
+
+  router.get("/agents/:id/keys", async (req, res) => {
+    assertBoard(req);
+    const id = req.params.id as string;
+    const keys = await svc.listKeys(id);
+    res.json(keys);
+  });
+
+  router.post("/agents/:id/keys", validate(createAgentKeySchema), async (req, res) => {
+    assertBoard(req);
+    const id = req.params.id as string;
+    const key = await svc.createApiKey(id, req.body.name);
+
+    const agent = await svc.getById(id);
+    if (agent) {
+      await logActivity(db, {
+        companyId: agent.companyId,
+        actorType: "user",
+        actorId: req.actor.userId ?? "board",
+        action: "agent.key_created",
+        entityType: "agent",
+        entityId: agent.id,
+        details: { keyId: key.id, name: key.name },
+      });
+    }
+
+    res.status(201).json(key);
+  });
+
+  router.delete("/agents/:id/keys/:keyId", async (req, res) => {
+    assertBoard(req);
+    const keyId = req.params.keyId as string;
+    const revoked = await svc.revokeKey(keyId);
+    if (!revoked) {
+      res.status(404).json({ error: "Key not found" });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  router.post("/agents/:id/wakeup", validate(wakeAgentSchema), async (req, res) => {
+    const id = req.params.id as string;
+    const agent = await svc.getById(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    assertCompanyAccess(req, agent.companyId);
+
+    if (req.actor.type === "agent" && req.actor.agentId !== id) {
+      res.status(403).json({ error: "Agent can only invoke itself" });
+      return;
+    }
+
+    const run = await heartbeat.wakeup(id, {
+      source: req.body.source,
+      triggerDetail: req.body.triggerDetail ?? "manual",
+      reason: req.body.reason ?? null,
+      payload: req.body.payload ?? null,
+      idempotencyKey: req.body.idempotencyKey ?? null,
+      requestedByActorType: req.actor.type === "agent" ? "agent" : "user",
+      requestedByActorId: req.actor.type === "agent" ? req.actor.agentId ?? null : req.actor.userId ?? null,
+      contextSnapshot: {
+        triggeredBy: req.actor.type,
+        actorId: req.actor.type === "agent" ? req.actor.agentId : req.actor.userId,
+        forceFreshSession: req.body.forceFreshSession === true,
+      },
+    });
+
+    if (!run) {
+      res.status(202).json({ status: "skipped" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "heartbeat.invoked",
+      entityType: "heartbeat_run",
+      entityId: run.id,
+      details: { agentId: id },
+    });
+
+    res.status(202).json(run);
+  });
+
+  router.post("/agents/:id/heartbeat/invoke", async (req, res) => {
+    const id = req.params.id as string;
+    const agent = await svc.getById(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    assertCompanyAccess(req, agent.companyId);
+
+    if (req.actor.type === "agent" && req.actor.agentId !== id) {
+      res.status(403).json({ error: "Agent can only invoke itself" });
+      return;
+    }
+
+    const run = await heartbeat.invoke(
+      id,
+      "on_demand",
+      {
+        triggeredBy: req.actor.type,
+        actorId: req.actor.type === "agent" ? req.actor.agentId : req.actor.userId,
+      },
+      "manual",
+      {
+        actorType: req.actor.type === "agent" ? "agent" : "user",
+        actorId: req.actor.type === "agent" ? req.actor.agentId ?? null : req.actor.userId ?? null,
+      },
+    );
+
+    if (!run) {
+      res.status(202).json({ status: "skipped" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "heartbeat.invoked",
+      entityType: "heartbeat_run",
+      entityId: run.id,
+      details: { agentId: id },
+    });
+
+    res.status(202).json(run);
+  });
+
+  router.post("/agents/:id/claude-login", async (req, res) => {
+    assertBoard(req);
+    const id = req.params.id as string;
+    const agent = await svc.getById(id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    assertCompanyAccess(req, agent.companyId);
+    if (agent.adapterType !== "claude_local") {
+      res.status(400).json({ error: "Login is only supported for claude_local agents" });
+      return;
+    }
+
+    const config = asRecord(agent.adapterConfig) ?? {};
+    const { config: runtimeConfig } = await secretsSvc.resolveAdapterConfigForRuntime(agent.companyId, config);
+    const result = await runClaudeLogin({
+      runId: `claude-login-${randomUUID()}`,
+      agent: {
+        id: agent.id,
+        companyId: agent.companyId,
+        name: agent.name,
+        adapterType: agent.adapterType,
+        adapterConfig: agent.adapterConfig,
+      },
+      config: runtimeConfig,
+    });
+
+    res.json(result);
+  });
+
+  router.get("/companies/:companyId/heartbeat-runs", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const agentId = req.query.agentId as string | undefined;
+    const limitParam = req.query.limit as string | undefined;
+    const limit = limitParam ? Math.max(1, Math.min(1000, parseInt(limitParam, 10) || 200)) : undefined;
+    const runs = await heartbeat.list(companyId, agentId, limit);
+    res.json(runs);
+  });
+
+  router.get("/companies/:companyId/live-runs", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+
+    const minCountParam = req.query.minCount as string | undefined;
+    const minCount = minCountParam ? Math.max(0, Math.min(20, parseInt(minCountParam, 10) || 0)) : 0;
+
+    const columns = {
+      id: heartbeatRuns.id,
+      status: heartbeatRuns.status,
+      invocationSource: heartbeatRuns.invocationSource,
+      triggerDetail: heartbeatRuns.triggerDetail,
+      startedAt: heartbeatRuns.startedAt,
+      finishedAt: heartbeatRuns.finishedAt,
+      createdAt: heartbeatRuns.createdAt,
+      agentId: heartbeatRuns.agentId,
+      agentName: agentsTable.name,
+      adapterType: agentsTable.adapterType,
+      issueId: sql<string | null>`${heartbeatRuns.contextSnapshot} ->> 'issueId'`.as("issueId"),
+    };
+
+    const liveRuns = await db
+      .select(columns)
+      .from(heartbeatRuns)
+      .innerJoin(agentsTable, eq(heartbeatRuns.agentId, agentsTable.id))
+      .where(
+        and(
+          eq(heartbeatRuns.companyId, companyId),
+          inArray(heartbeatRuns.status, ["queued", "running"]),
+        ),
+      )
+      .orderBy(desc(heartbeatRuns.createdAt));
+
+    if (minCount > 0 && liveRuns.length < minCount) {
+      const activeIds = liveRuns.map((r) => r.id);
+      const recentRuns = await db
+        .select(columns)
+        .from(heartbeatRuns)
+        .innerJoin(agentsTable, eq(heartbeatRuns.agentId, agentsTable.id))
+        .where(
+          and(
+            eq(heartbeatRuns.companyId, companyId),
+            not(inArray(heartbeatRuns.status, ["queued", "running"])),
+            ...(activeIds.length > 0 ? [not(inArray(heartbeatRuns.id, activeIds))] : []),
+          ),
+        )
+        .orderBy(desc(heartbeatRuns.createdAt))
+        .limit(minCount - liveRuns.length);
+
+      res.json([...liveRuns, ...recentRuns]);
+      return;
+    }
+
+    res.json(liveRuns);
+  });
+
+  router.get("/heartbeat-runs/:runId", async (req, res) => {
+    const runId = req.params.runId as string;
+    const run = await heartbeat.getRun(runId);
+    if (!run) {
+      res.status(404).json({ error: "Heartbeat run not found" });
+      return;
+    }
+    assertCompanyAccess(req, run.companyId);
+    res.json(redactCurrentUserValue(run, await getCurrentUserRedactionOptions()));
+  });
+
+  router.post("/heartbeat-runs/:runId/cancel", async (req, res) => {
+    assertBoard(req);
+    const runId = req.params.runId as string;
+    const run = await heartbeat.cancelRun(runId);
+
+    if (run) {
+      await logActivity(db, {
+        companyId: run.companyId,
+        actorType: "user",
+        actorId: req.actor.userId ?? "board",
+        action: "heartbeat.cancelled",
+        entityType: "heartbeat_run",
+        entityId: run.id,
+        details: { agentId: run.agentId },
+      });
+    }
+
+    res.json(run);
+  });
+
+  router.get("/heartbeat-runs/:runId/events", async (req, res) => {
+    const runId = req.params.runId as string;
+    const run = await heartbeat.getRun(runId);
+    if (!run) {
+      res.status(404).json({ error: "Heartbeat run not found" });
+      return;
+    }
+    assertCompanyAccess(req, run.companyId);
+
+    const afterSeq = Number(req.query.afterSeq ?? 0);
+    const limit = Number(req.query.limit ?? 200);
+    const events = await heartbeat.listEvents(runId, Number.isFinite(afterSeq) ? afterSeq : 0, Number.isFinite(limit) ? limit : 200);
+    const currentUserRedactionOptions = await getCurrentUserRedactionOptions();
+    const redactedEvents = events.map((event) =>
+      redactCurrentUserValue({
+        ...event,
+        payload: redactEventPayload(event.payload),
+      }, currentUserRedactionOptions),
+    );
+    res.json(redactedEvents);
+  });
+
+  router.get("/heartbeat-runs/:runId/log", async (req, res) => {
+    const runId = req.params.runId as string;
+    const run = await heartbeat.getRun(runId);
+    if (!run) {
+      res.status(404).json({ error: "Heartbeat run not found" });
+      return;
+    }
+    assertCompanyAccess(req, run.companyId);
+
+    const offset = Number(req.query.offset ?? 0);
+    const limitBytes = Number(req.query.limitBytes ?? 256000);
+    const result = await heartbeat.readLog(runId, {
+      offset: Number.isFinite(offset) ? offset : 0,
+      limitBytes: Number.isFinite(limitBytes) ? limitBytes : 256000,
+    });
+
+    res.json(result);
+  });
+
+  router.get("/heartbeat-runs/:runId/workspace-operations", async (req, res) => {
+    const runId = req.params.runId as string;
+    const run = await heartbeat.getRun(runId);
+    if (!run) {
+      res.status(404).json({ error: "Heartbeat run not found" });
+      return;
+    }
+    assertCompanyAccess(req, run.companyId);
+
+    const context = asRecord(run.contextSnapshot);
+    const executionWorkspaceId = asNonEmptyString(context?.executionWorkspaceId);
+    const operations = await workspaceOperations.listForRun(runId, executionWorkspaceId);
+    res.json(redactCurrentUserValue(operations, await getCurrentUserRedactionOptions()));
+  });
+
+  router.get("/workspace-operations/:operationId/log", async (req, res) => {
+    const operationId = req.params.operationId as string;
+    const operation = await workspaceOperations.getById(operationId);
+    if (!operation) {
+      res.status(404).json({ error: "Workspace operation not found" });
+      return;
+    }
+    assertCompanyAccess(req, operation.companyId);
+
+    const offset = Number(req.query.offset ?? 0);
+    const limitBytes = Number(req.query.limitBytes ?? 256000);
+    const result = await workspaceOperations.readLog(operationId, {
+      offset: Number.isFinite(offset) ? offset : 0,
+      limitBytes: Number.isFinite(limitBytes) ? limitBytes : 256000,
+    });
+
+    res.json(result);
+  });
+
+  router.get("/issues/:issueId/live-runs", async (req, res) => {
+    const rawId = req.params.issueId as string;
+    const issueSvc = issueService(db);
+    const isIdentifier = /^[A-Z]+-\d+$/i.test(rawId);
+    const issue = isIdentifier ? await issueSvc.getByIdentifier(rawId) : await issueSvc.getById(rawId);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
+      return;
+    }
+    assertCompanyAccess(req, issue.companyId);
+
+    const liveRuns = await db
+      .select({
+        id: heartbeatRuns.id,
+        status: heartbeatRuns.status,
+        invocationSource: heartbeatRuns.invocationSource,
+        triggerDetail: heartbeatRuns.triggerDetail,
+        startedAt: heartbeatRuns.startedAt,
+        finishedAt: heartbeatRuns.finishedAt,
+        createdAt: heartbeatRuns.createdAt,
+        agentId: heartbeatRuns.agentId,
+        agentName: agentsTable.name,
+        adapterType: agentsTable.adapterType,
+      })
+      .from(heartbeatRuns)
+      .innerJoin(agentsTable, eq(heartbeatRuns.agentId, agentsTable.id))
+      .where(
+        and(
+          eq(heartbeatRuns.companyId, issue.companyId),
+          inArray(heartbeatRuns.status, ["queued", "running"]),
+          sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issue.id}`,
+        ),
+      )
+      .orderBy(desc(heartbeatRuns.createdAt));
+
+    res.json(liveRuns);
+  });
+
+  router.get("/issues/:issueId/active-run", async (req, res) => {
+    const rawId = req.params.issueId as string;
+    const issueSvc = issueService(db);
+    const isIdentifier = /^[A-Z]+-\d+$/i.test(rawId);
+    const issue = isIdentifier ? await issueSvc.getByIdentifier(rawId) : await issueSvc.getById(rawId);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
+      return;
+    }
+    assertCompanyAccess(req, issue.companyId);
+
+    let run = issue.executionRunId ? await heartbeat.getRun(issue.executionRunId) : null;
+    if (run && run.status !== "queued" && run.status !== "running") {
+      run = null;
+    }
+
+    if (!run && issue.assigneeAgentId && issue.status === "in_progress") {
+      const candidateRun = await heartbeat.getActiveRunForAgent(issue.assigneeAgentId);
+      const candidateContext = asRecord(candidateRun?.contextSnapshot);
+      const candidateIssueId = asNonEmptyString(candidateContext?.issueId);
+      if (candidateRun && candidateIssueId === issue.id) {
+        run = candidateRun;
+      }
+    }
+    if (!run) {
+      res.json(null);
+      return;
+    }
+
+    const agent = await svc.getById(run.agentId);
+    if (!agent) {
+      res.json(null);
+      return;
+    }
+
+    res.json({
+      ...redactCurrentUserValue(run, await getCurrentUserRedactionOptions()),
+      agentId: agent.id,
+      agentName: agent.name,
+      adapterType: agent.adapterType,
+    });
+  });
+
+  return router;
+}

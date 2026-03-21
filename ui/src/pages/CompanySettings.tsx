@@ -242,6 +242,24 @@ export function CompanySettings() {
     }
   });
 
+  const pauseMutation = useMutation({
+    mutationFn: (companyId: string) => companiesApi.pause(companyId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.companies.all
+      });
+    }
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: (companyId: string) => companiesApi.resume(companyId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.companies.all
+      });
+    }
+  });
+
   useEffect(() => {
     setBreadcrumbs([
       { label: selectedCompany?.name ?? "Company", href: "/dashboard" },
@@ -635,6 +653,73 @@ export function CompanySettings() {
                 Import
               </a>
             </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Maintenance Mode */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-amber-600 dark:text-amber-500 uppercase tracking-wide">
+          Maintenance Mode
+        </div>
+        <div className="space-y-3 rounded-md border border-amber-500/40 bg-amber-500/5 px-4 py-4">
+          <p className="text-sm text-muted-foreground">
+            When paused, no runs will execute and no heartbeats will be sent. 
+            All other operations (editing issues, agents, etc.) remain available.
+            Think of it as &quot;frozen in time&quot; for maintenance.
+          </p>
+          <div className="flex items-center gap-2">
+            {selectedCompany.status === "paused" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={resumeMutation.isPending}
+                onClick={() => {
+                  if (!selectedCompanyId) return;
+                  resumeMutation.mutate(selectedCompanyId);
+                }}
+              >
+                {resumeMutation.isPending ? "Resuming..." : "Resume Company"}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={
+                  pauseMutation.isPending ||
+                  selectedCompany.status === "archived"
+                }
+                onClick={() => {
+                  if (!selectedCompanyId) return;
+                  const confirmed = window.confirm(
+                    `Pause company "${selectedCompany.name}"? All runs and heartbeats will be suspended.`
+                  );
+                  if (!confirmed) return;
+                  pauseMutation.mutate(selectedCompanyId);
+                }}
+              >
+                {pauseMutation.isPending ? "Pausing..." : "Pause Company"}
+              </Button>
+            )}
+            {selectedCompany.status === "paused" && (
+              <span className="text-xs text-amber-600 dark:text-amber-500 font-medium">
+                Company is paused - runs suspended
+              </span>
+            )}
+            {pauseMutation.isError && (
+              <span className="text-xs text-destructive">
+                {pauseMutation.error instanceof Error
+                  ? pauseMutation.error.message
+                  : "Failed to pause company"}
+              </span>
+            )}
+            {resumeMutation.isError && (
+              <span className="text-xs text-destructive">
+                {resumeMutation.error instanceof Error
+                  ? resumeMutation.error.message
+                  : "Failed to resume company"}
+              </span>
+            )}
           </div>
         </div>
       </div>
