@@ -152,6 +152,19 @@ export type {
   CreateReviewRequest,
   CompleteReviewRequest,
 } from "./collaboration.js";
+export type {
+  WorkflowStatus,
+  WorkflowRunStatus,
+  WorkflowRunStepStatus,
+  WorkflowTriggerConfig,
+  WorkflowNode,
+  WorkflowEdge,
+  Workflow,
+  WorkflowRun,
+  WorkflowRunStep,
+  CreateWorkflowRequest,
+  UpdateWorkflowRequest,
+} from "./workflow.js";
 export type { ActivityEvent } from "./activity.js";
 export type { SidebarBadges } from "./sidebar-badges.js";
 export type {

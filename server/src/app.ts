@@ -25,6 +25,7 @@ import { activityRoutes } from "./routes/activity.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { collaborationRoutes } from "./routes/collaboration.js";
+import { workflowRoutes } from "./routes/workflow.js";
 import { sidebarBadgeRoutes } from "./routes/sidebar-badges.js";
 import { instanceSettingsRoutes } from "./routes/instance-settings.js";
 import { llmRoutes } from "./routes/llms.js";
@@ -155,6 +156,7 @@ export async function createApp(
   api.use(dashboardRoutes(db));
   api.use(analyticsRoutes(db));
   api.use(collaborationRoutes(db));
+  api.use(workflowRoutes(db));
   api.use(sidebarBadgeRoutes(db));
   api.use(instanceSettingsRoutes(db));
   const hostServicesDisposers = new Map<string, () => void>();
