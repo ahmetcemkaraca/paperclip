@@ -18,6 +18,7 @@ export { financeService } from "./finance.js";
 export { modelPriceService, computeCostCents, type ModelPrice, type ModelPriceData } from "./model-prices.js";
 export { heartbeatService } from "./heartbeat.js";
 export { dashboardService } from "./dashboard.js";
+export { analyticsService } from "./analytics.js";
 export { sidebarBadgeService } from "./sidebar-badges.js";
 export { agentNotificationService } from "./agent-notifications.js";
 export { accessService } from "./access.js";

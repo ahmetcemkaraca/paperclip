@@ -4,6 +4,14 @@ export const queryKeys = {
     detail: (id: string) => ["companies", id] as const,
     stats: ["companies", "stats"] as const,
   },
+  analytics: {
+    overview: (companyId: string) => ["analytics", companyId, "overview"] as const,
+    costTrend: (companyId: string) => ["analytics", companyId, "cost-trend"] as const,
+    agentPerformance: (companyId: string) => ["analytics", companyId, "agent-performance"] as const,
+    taskVelocity: (companyId: string) => ["analytics", companyId, "task-velocity"] as const,
+    activityHeatmap: (companyId: string) => ["analytics", companyId, "activity-heatmap"] as const,
+    projectProgress: (companyId: string) => ["analytics", companyId, "project-progress"] as const,
+  },
   companySkills: {
     list: (companyId: string) => ["company-skills", companyId] as const,
     detail: (companyId: string, skillId: string) => ["company-skills", companyId, skillId] as const,
