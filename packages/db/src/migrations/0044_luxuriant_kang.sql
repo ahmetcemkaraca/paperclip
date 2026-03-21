@@ -1,4 +1,4 @@
-CREATE TABLE "discussion_comments" (
+CREATE TABLE IF NOT EXISTS "discussion_comments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
 	"discussion_id" uuid NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE "discussion_comments" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "discussions" (
+CREATE TABLE IF NOT EXISTS "discussions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
 	"title" text NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE "discussions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "model_prices" (
+CREATE TABLE IF NOT EXISTS "model_prices" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"model_name" text NOT NULL,
 	"input_cost_per_million" integer DEFAULT 0 NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE "model_prices" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "issue_assignees" (
+CREATE TABLE IF NOT EXISTS "issue_assignees" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
 	"issue_id" uuid NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE "issue_assignees" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "agent_permission_overrides" (
+CREATE TABLE IF NOT EXISTS "agent_permission_overrides" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"permission_id" uuid NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE "agent_permission_overrides" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "agent_role_assignments" (
+CREATE TABLE IF NOT EXISTS "agent_role_assignments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"role_id" uuid NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE "agent_role_assignments" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "permission_audit_log" (
+CREATE TABLE IF NOT EXISTS "permission_audit_log" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
 	"actor_id" uuid,
@@ -72,7 +72,7 @@ CREATE TABLE "permission_audit_log" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "permission_definitions" (
+CREATE TABLE IF NOT EXISTS "permission_definitions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"category" varchar(50) NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE "permission_definitions" (
 	CONSTRAINT "permission_definitions_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
-CREATE TABLE "role_permissions" (
+CREATE TABLE IF NOT EXISTS "role_permissions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"role_id" uuid NOT NULL,
 	"permission_id" uuid NOT NULL,
@@ -91,7 +91,7 @@ CREATE TABLE "role_permissions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "roles" (
+CREATE TABLE IF NOT EXISTS "roles" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
 	"name" varchar(100) NOT NULL,
@@ -102,7 +102,7 @@ CREATE TABLE "roles" (
 	"archived_at" timestamp with time zone
 );
 --> statement-breakpoint
-CREATE TABLE "push_subscriptions" (
+CREATE TABLE IF NOT EXISTS "push_subscriptions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
 	"endpoint" text NOT NULL,
@@ -112,55 +112,214 @@ CREATE TABLE "push_subscriptions" (
 	CONSTRAINT "push_subscriptions_endpoint_unique" UNIQUE("endpoint")
 );
 --> statement-breakpoint
-ALTER TABLE "agents" ADD COLUMN "fallback_config" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "agents" ADD COLUMN "last_notifications_read_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "companies" ADD COLUMN "max_concurrent_agents" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
-ALTER TABLE "companies" ADD COLUMN "logo_asset_id" uuid;--> statement-breakpoint
-ALTER TABLE "companies" ADD COLUMN "system_prompt_md" text DEFAULT '' NOT NULL;--> statement-breakpoint
-ALTER TABLE "companies" ADD COLUMN "system_prompt_updated_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
-ALTER TABLE "companies" ADD COLUMN "fallback_config" jsonb DEFAULT '{}'::jsonb;--> statement-breakpoint
-ALTER TABLE "instance_settings" ADD COLUMN "general" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "progress_percent" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
-ALTER TABLE "discussion_comments" ADD CONSTRAINT "discussion_comments_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "discussion_comments" ADD CONSTRAINT "discussion_comments_discussion_id_discussions_id_fk" FOREIGN KEY ("discussion_id") REFERENCES "public"."discussions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "discussion_comments" ADD CONSTRAINT "discussion_comments_author_agent_id_agents_id_fk" FOREIGN KEY ("author_agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "discussions" ADD CONSTRAINT "discussions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "discussions" ADD CONSTRAINT "discussions_author_agent_id_agents_id_fk" FOREIGN KEY ("author_agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "issue_assignees" ADD CONSTRAINT "issue_assignees_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "issue_assignees" ADD CONSTRAINT "issue_assignees_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "issue_assignees" ADD CONSTRAINT "issue_assignees_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_permission_overrides" ADD CONSTRAINT "agent_permission_overrides_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_permission_overrides" ADD CONSTRAINT "agent_permission_overrides_permission_id_permission_definitions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permission_definitions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_role_assignments" ADD CONSTRAINT "agent_role_assignments_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "agent_role_assignments" ADD CONSTRAINT "agent_role_assignments_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "permission_audit_log" ADD CONSTRAINT "permission_audit_log_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_permission_definitions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permission_definitions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "roles" ADD CONSTRAINT "roles_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "push_subscriptions" ADD CONSTRAINT "push_subscriptions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "discussion_comments_discussion_idx" ON "discussion_comments" USING btree ("discussion_id");--> statement-breakpoint
-CREATE INDEX "discussion_comments_company_idx" ON "discussion_comments" USING btree ("company_id");--> statement-breakpoint
-CREATE INDEX "discussion_comments_company_discussion_created_at_idx" ON "discussion_comments" USING btree ("company_id","discussion_id","created_at");--> statement-breakpoint
-CREATE INDEX "discussion_comments_company_author_discussion_created_at_idx" ON "discussion_comments" USING btree ("company_id","author_user_id","discussion_id","created_at");--> statement-breakpoint
-CREATE INDEX "discussions_company_idx" ON "discussions" USING btree ("company_id");--> statement-breakpoint
-CREATE INDEX "discussions_company_created_at_idx" ON "discussions" USING btree ("company_id","created_at");--> statement-breakpoint
-CREATE INDEX "discussions_author_idx" ON "discussions" USING btree ("author_agent_id","author_user_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "model_prices_model_name_idx" ON "model_prices" USING btree ("model_name");--> statement-breakpoint
-CREATE INDEX "issue_assignees_company_issue_idx" ON "issue_assignees" USING btree ("company_id","issue_id");--> statement-breakpoint
-CREATE INDEX "issue_assignees_issue_agent_idx" ON "issue_assignees" USING btree ("issue_id","agent_id");--> statement-breakpoint
-CREATE INDEX "issue_assignees_agent_idx" ON "issue_assignees" USING btree ("agent_id");--> statement-breakpoint
-CREATE INDEX "idx_agent_permission_overrides_agent" ON "agent_permission_overrides" USING btree ("agent_id");--> statement-breakpoint
-CREATE INDEX "idx_agent_permission_overrides_permission" ON "agent_permission_overrides" USING btree ("permission_id");--> statement-breakpoint
-CREATE INDEX "idx_agent_permission_overrides_enabled" ON "agent_permission_overrides" USING btree ("is_enabled");--> statement-breakpoint
-CREATE INDEX "idx_agent_role_assignments_agent" ON "agent_role_assignments" USING btree ("agent_id");--> statement-breakpoint
-CREATE INDEX "idx_agent_role_assignments_role" ON "agent_role_assignments" USING btree ("role_id");--> statement-breakpoint
-CREATE INDEX "idx_permission_audit_company" ON "permission_audit_log" USING btree ("company_id");--> statement-breakpoint
-CREATE INDEX "idx_permission_audit_date" ON "permission_audit_log" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "idx_permission_category" ON "permission_definitions" USING btree ("category");--> statement-breakpoint
-CREATE INDEX "idx_permission_name" ON "permission_definitions" USING btree ("name");--> statement-breakpoint
-CREATE INDEX "idx_role_permissions_role" ON "role_permissions" USING btree ("role_id");--> statement-breakpoint
-CREATE INDEX "idx_role_permissions_permission" ON "role_permissions" USING btree ("permission_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "role_permissions_role_permission_unique" ON "role_permissions" USING btree ("role_id","permission_id");--> statement-breakpoint
-CREATE INDEX "idx_roles_company" ON "roles" USING btree ("company_id");--> statement-breakpoint
-CREATE INDEX "idx_roles_system" ON "roles" USING btree ("is_system_role");--> statement-breakpoint
-CREATE INDEX "idx_roles_archived" ON "roles" USING btree ("archived_at");
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'agents' AND column_name = 'fallback_config') THEN
+  ALTER TABLE "agents" ADD COLUMN "fallback_config" jsonb DEFAULT '{}'::jsonb NOT NULL;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'agents' AND column_name = 'last_notifications_read_at') THEN
+  ALTER TABLE "agents" ADD COLUMN "last_notifications_read_at" timestamp with time zone;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'companies' AND column_name = 'max_concurrent_agents') THEN
+  ALTER TABLE "companies" ADD COLUMN "max_concurrent_agents" integer DEFAULT 1 NOT NULL;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'companies' AND column_name = 'logo_asset_id') THEN
+  ALTER TABLE "companies" ADD COLUMN "logo_asset_id" uuid;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'companies' AND column_name = 'system_prompt_md') THEN
+  ALTER TABLE "companies" ADD COLUMN "system_prompt_md" text DEFAULT '' NOT NULL;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'companies' AND column_name = 'system_prompt_updated_at') THEN
+  ALTER TABLE "companies" ADD COLUMN "system_prompt_updated_at" timestamp with time zone DEFAULT now() NOT NULL;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'companies' AND column_name = 'fallback_config') THEN
+  ALTER TABLE "companies" ADD COLUMN "fallback_config" jsonb DEFAULT '{}'::jsonb;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'instance_settings' AND column_name = 'general') THEN
+  ALTER TABLE "instance_settings" ADD COLUMN "general" jsonb DEFAULT '{}'::jsonb NOT NULL;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'progress_percent') THEN
+  ALTER TABLE "projects" ADD COLUMN "progress_percent" integer DEFAULT 0 NOT NULL;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'discussion_comments_company_id_companies_id_fk') THEN
+  ALTER TABLE "discussion_comments" ADD CONSTRAINT "discussion_comments_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'discussion_comments_discussion_id_discussions_id_fk') THEN
+  ALTER TABLE "discussion_comments" ADD CONSTRAINT "discussion_comments_discussion_id_discussions_id_fk" FOREIGN KEY ("discussion_id") REFERENCES "public"."discussions"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'discussion_comments_author_agent_id_agents_id_fk') THEN
+  ALTER TABLE "discussion_comments" ADD CONSTRAINT "discussion_comments_author_agent_id_agents_id_fk" FOREIGN KEY ("author_agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'discussions_company_id_companies_id_fk') THEN
+  ALTER TABLE "discussions" ADD CONSTRAINT "discussions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'discussions_author_agent_id_agents_id_fk') THEN
+  ALTER TABLE "discussions" ADD CONSTRAINT "discussions_author_agent_id_agents_id_fk" FOREIGN KEY ("author_agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'issue_assignees_company_id_companies_id_fk') THEN
+  ALTER TABLE "issue_assignees" ADD CONSTRAINT "issue_assignees_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'issue_assignees_issue_id_issues_id_fk') THEN
+  ALTER TABLE "issue_assignees" ADD CONSTRAINT "issue_assignees_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE cascade ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'issue_assignees_agent_id_agents_id_fk') THEN
+  ALTER TABLE "issue_assignees" ADD CONSTRAINT "issue_assignees_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'agent_permission_overrides_agent_id_agents_id_fk') THEN
+  ALTER TABLE "agent_permission_overrides" ADD CONSTRAINT "agent_permission_overrides_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'agent_permission_overrides_permission_id_permission_definitions_id_fk') THEN
+  ALTER TABLE "agent_permission_overrides" ADD CONSTRAINT "agent_permission_overrides_permission_id_permission_definitions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permission_definitions"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'agent_role_assignments_agent_id_agents_id_fk') THEN
+  ALTER TABLE "agent_role_assignments" ADD CONSTRAINT "agent_role_assignments_agent_id_agents_id_fk" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'agent_role_assignments_role_id_roles_id_fk') THEN
+  ALTER TABLE "agent_role_assignments" ADD CONSTRAINT "agent_role_assignments_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'permission_audit_log_company_id_companies_id_fk') THEN
+  ALTER TABLE "permission_audit_log" ADD CONSTRAINT "permission_audit_log_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'role_permissions_role_id_roles_id_fk') THEN
+  ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'role_permissions_permission_id_permission_definitions_id_fk') THEN
+  ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_permission_definitions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permission_definitions"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'roles_company_id_companies_id_fk') THEN
+  ALTER TABLE "roles" ADD CONSTRAINT "roles_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_company_id_companies_id_fk') THEN
+  ALTER TABLE "push_subscriptions" ADD CONSTRAINT "push_subscriptions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ END IF;
+END $$;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "discussion_comments_discussion_idx" ON "discussion_comments" USING btree ("discussion_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "discussion_comments_company_idx" ON "discussion_comments" USING btree ("company_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "discussion_comments_company_discussion_created_at_idx" ON "discussion_comments" USING btree ("company_id","discussion_id","created_at");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "discussion_comments_company_author_discussion_created_at_idx" ON "discussion_comments" USING btree ("company_id","author_user_id","discussion_id","created_at");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "discussions_company_idx" ON "discussions" USING btree ("company_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "discussions_company_created_at_idx" ON "discussions" USING btree ("company_id","created_at");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "discussions_author_idx" ON "discussions" USING btree ("author_agent_id","author_user_id");
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "model_prices_model_name_idx" ON "model_prices" USING btree ("model_name");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "issue_assignees_company_issue_idx" ON "issue_assignees" USING btree ("company_id","issue_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "issue_assignees_issue_agent_idx" ON "issue_assignees" USING btree ("issue_id","agent_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "issue_assignees_agent_idx" ON "issue_assignees" USING btree ("agent_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_agent_permission_overrides_agent" ON "agent_permission_overrides" USING btree ("agent_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_agent_permission_overrides_permission" ON "agent_permission_overrides" USING btree ("permission_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_agent_permission_overrides_enabled" ON "agent_permission_overrides" USING btree ("is_enabled");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_agent_role_assignments_agent" ON "agent_role_assignments" USING btree ("agent_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_agent_role_assignments_role" ON "agent_role_assignments" USING btree ("role_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_permission_audit_company" ON "permission_audit_log" USING btree ("company_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_permission_audit_date" ON "permission_audit_log" USING btree ("created_at");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_permission_category" ON "permission_definitions" USING btree ("category");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_permission_name" ON "permission_definitions" USING btree ("name");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_role_permissions_role" ON "role_permissions" USING btree ("role_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_role_permissions_permission" ON "role_permissions" USING btree ("permission_id");
+--> statement-breakpoint
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'role_permissions_role_permission_unique') THEN
+  CREATE UNIQUE INDEX "role_permissions_role_permission_unique" ON "role_permissions" USING btree ("role_id","permission_id");
+ END IF;
+END $$;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_roles_company" ON "roles" USING btree ("company_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_roles_system" ON "roles" USING btree ("is_system_role");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_roles_archived" ON "roles" USING btree ("archived_at");
