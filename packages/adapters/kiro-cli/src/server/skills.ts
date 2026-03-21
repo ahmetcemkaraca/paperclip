@@ -25,25 +25,25 @@ export async function ensureKiroSkillsInjected(
   await fs.mkdir(skillsHome, { recursive: true });
   const removedSkills = await removeMaintainerOnlySkillSymlinks(
     skillsHome,
-    skillsEntries.map((entry) => entry.name),
+    skillsEntries.map((entry) => entry.runtimeName),
   );
   for (const name of removedSkills) {
     await onLog("stdout", `[paperclip] Removed maintainer-only Kiro skill "${name}" from ${skillsHome}\n`);
   }
 
   for (const entry of skillsEntries) {
-    const target = path.join(skillsHome, entry.name);
+    const target = path.join(skillsHome, entry.runtimeName);
     try {
       const result = await ensurePaperclipSkillSymlink(entry.source, target);
       if (result === "skipped") continue;
       await onLog(
         "stdout",
-        `[paperclip] ${result === "repaired" ? "Repaired" : "Injected"} Kiro skill "${entry.name}" into ${skillsHome}\n`,
+        `[paperclip] ${result === "repaired" ? "Repaired" : "Injected"} Kiro skill "${entry.runtimeName}" into ${skillsHome}\n`,
       );
     } catch (error) {
       await onLog(
         "stderr",
-        `[paperclip] Failed to inject Kiro skill "${entry.name}" into ${skillsHome}: ${error instanceof Error ? error.message : String(error)}\n`,
+        `[paperclip] Failed to inject Kiro skill "${entry.runtimeName}" into ${skillsHome}: ${error instanceof Error ? error.message : String(error)}\n`,
       );
     }
   }

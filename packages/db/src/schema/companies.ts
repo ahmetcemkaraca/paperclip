@@ -18,6 +18,7 @@ export const companies = pgTable(
       .default(true),
     maxConcurrentAgents: integer("max_concurrent_agents").notNull().default(1),
     brandColor: text("brand_color"),
+    logoAssetId: uuid("logo_asset_id"),
     systemPromptMd: text("system_prompt_md").notNull().default(""),
     systemPromptUpdatedAt: timestamp("system_prompt_updated_at", { withTimezone: true })
       .notNull()
