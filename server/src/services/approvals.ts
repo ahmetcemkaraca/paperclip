@@ -5,22 +5,26 @@ import { notFound, unprocessable } from "../errors.js";
 import { redactCurrentUserText } from "../log-redaction.js";
 import { agentService } from "./agents.js";
 import { companyService } from "./companies.js";
+import { budgetService } from "./budgets.js";
 import { notifyHireApproved } from "./hire-hook.js";
-
-function redactApprovalComment<T extends { body: string }>(comment: T): T {
-  return {
-    ...comment,
-    body: redactCurrentUserText(comment.body),
-  };
-}
+import { instanceSettingsService } from "./instance-settings.js";
 
 export function approvalService(db: Db) {
   const agentsSvc = agentService(db);
   const companiesSvc = companyService(db);
+  const budgets = budgetService(db);
+  const instanceSettings = instanceSettingsService(db);
   const canResolveStatuses = new Set(["pending", "revision_requested"]);
   const resolvableStatuses = Array.from(canResolveStatuses);
   type ApprovalRecord = typeof approvals.$inferSelect;
   type ResolutionResult = { approval: ApprovalRecord; applied: boolean };
+
+  function redactApprovalComment<T extends { body: string }>(comment: T, censorUsernameInLogs: boolean): T {
+    return {
+      ...comment,
+      body: redactCurrentUserText(comment.body, { enabled: censorUsernameInLogs }),
+    };
+  }
 
   async function getExistingApproval(id: string) {
     const existing = await db
@@ -227,6 +231,7 @@ export function approvalService(db: Db) {
 
     listComments: async (approvalId: string) => {
       const existing = await getExistingApproval(approvalId);
+      const { censorUsernameInLogs } = await instanceSettings.getGeneral();
       return db
         .select()
         .from(approvalComments)
@@ -237,7 +242,7 @@ export function approvalService(db: Db) {
           ),
         )
         .orderBy(asc(approvalComments.createdAt))
-        .then((comments) => comments.map(redactApprovalComment));
+        .then((comments) => comments.map((comment) => redactApprovalComment(comment, censorUsernameInLogs)));
     },
 
     addComment: async (
@@ -246,7 +251,10 @@ export function approvalService(db: Db) {
       actor: { agentId?: string; userId?: string },
     ) => {
       const existing = await getExistingApproval(approvalId);
-      const redactedBody = redactCurrentUserText(body);
+      const currentUserRedactionOptions = {
+        enabled: (await instanceSettings.getGeneral()).censorUsernameInLogs,
+      };
+      const redactedBody = redactCurrentUserText(body, currentUserRedactionOptions);
       return db
         .insert(approvalComments)
         .values({
@@ -257,7 +265,7 @@ export function approvalService(db: Db) {
           body: redactedBody,
         })
         .returning()
-        .then((rows) => redactApprovalComment(rows[0]));
+        .then((rows) => redactApprovalComment(rows[0], currentUserRedactionOptions.enabled));
     },
   };
 }

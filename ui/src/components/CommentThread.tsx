@@ -51,7 +51,6 @@ interface CommentThreadProps {
   sortOrder?: "asc" | "desc";
 }
 
-const CLOSED_STATUSES = new Set(["done", "cancelled"]);
 const DRAFT_DEBOUNCE_MS = 800;
 
 function loadDraft(draftKey: string): string {
@@ -279,6 +278,7 @@ export function CommentThread({
   const [reopen, setReopen] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [attaching, setAttaching] = useState(false);
+  const isClosed = issueStatus === "closed" || issueStatus === "done";
   const effectiveSuggestedAssigneeValue = suggestedAssigneeValue ?? currentAssigneeValue;
   const [reassignTarget, setReassignTarget] = useState(effectiveSuggestedAssigneeValue);
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
@@ -287,8 +287,6 @@ export function CommentThread({
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const location = useLocation();
   const hasScrolledRef = useRef(false);
-
-  const isClosed = issueStatus ? CLOSED_STATUSES.has(issueStatus) : false;
 
   const timeline = useMemo<TimelineItem[]>(() => {
     const commentItems: TimelineItem[] = comments.map((comment) => ({
@@ -372,10 +370,10 @@ export function CommentThread({
 
     setSubmitting(true);
     try {
-      await onAdd(trimmed, isClosed && reopen ? true : undefined, reassignment ?? undefined);
+      await onAdd(trimmed, reopen ? true : undefined, reassignment ?? undefined);
       setBody("");
       if (draftKey) clearDraft(draftKey);
-      setReopen(false);
+      setReopen(true);
       setReassignTarget(effectiveSuggestedAssigneeValue);
     } finally {
       setSubmitting(false);
