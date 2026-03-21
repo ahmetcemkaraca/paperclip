@@ -3,6 +3,37 @@ import type { Db } from "@paperclipai/db";
 import { collaborationService } from "../services/collaboration.js";
 import { assertCompanyAccess, getActorInfo } from "./authz.js";
 import { logActivity } from "../services/activity-log.js";
+import type {
+  CollaborationKind,
+  CollaborationStatus,
+  ReviewType,
+  ReviewStatus,
+} from "@paperclipai/shared";
+
+const VALID_COLLABORATION_KINDS: CollaborationKind[] = ["delegation", "assistance", "review", "pair_programming"];
+const VALID_COLLABORATION_STATUSES: CollaborationStatus[] = ["pending", "accepted", "declined", "completed", "cancelled"];
+const VALID_REVIEW_TYPES: ReviewType[] = ["code_review", "output_review", "process_review"];
+const VALID_REVIEW_STATUSES: ReviewStatus[] = ["requested", "in_progress", "approved", "changes_requested", "cancelled"];
+
+function validateCollaborationKind(value: unknown): CollaborationKind | undefined {
+  if (typeof value !== "string") return undefined;
+  return VALID_COLLABORATION_KINDS.includes(value as CollaborationKind) ? (value as CollaborationKind) : undefined;
+}
+
+function validateCollaborationStatus(value: unknown): CollaborationStatus | undefined {
+  if (typeof value !== "string") return undefined;
+  return VALID_COLLABORATION_STATUSES.includes(value as CollaborationStatus) ? (value as CollaborationStatus) : undefined;
+}
+
+function validateReviewType(value: unknown): ReviewType | undefined {
+  if (typeof value !== "string") return undefined;
+  return VALID_REVIEW_TYPES.includes(value as ReviewType) ? (value as ReviewType) : undefined;
+}
+
+function validateReviewStatus(value: unknown): ReviewStatus | undefined {
+  if (typeof value !== "string") return undefined;
+  return VALID_REVIEW_STATUSES.includes(value as ReviewStatus) ? (value as ReviewStatus) : undefined;
+}
 
 export function collaborationRoutes(db: Db) {
   const router = Router();
@@ -44,8 +75,8 @@ export function collaborationRoutes(db: Db) {
 
     const filters = {
       agentId: req.query.agentId as string | undefined,
-      status: req.query.status as any,
-      kind: req.query.kind as any,
+      status: validateCollaborationStatus(req.query.status),
+      kind: validateCollaborationKind(req.query.kind),
     };
 
     const result = await collaboration.listCollaborations(companyId, filters);
@@ -160,8 +191,8 @@ export function collaborationRoutes(db: Db) {
 
     const filters = {
       agentId: req.query.agentId as string | undefined,
-      status: req.query.status as any,
-      type: req.query.type as any,
+      status: validateReviewStatus(req.query.status),
+      type: validateReviewType(req.query.type),
     };
 
     const result = await collaboration.listReviews(companyId, filters);

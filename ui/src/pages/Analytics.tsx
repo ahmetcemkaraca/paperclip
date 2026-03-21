@@ -210,7 +210,10 @@ export function Analytics() {
               <Users className="h-5 w-5" />
               Agent Performance
             </CardTitle>
-            <CardDescription>Performance metrics by agent</CardDescription>
+            <CardDescription>
+              Performance metrics by agent
+              {agents.length > 10 && <span className="ml-2 text-xs">(showing top 10 of {agents.length})</span>}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {agents.length === 0 ? (
@@ -249,7 +252,10 @@ export function Analytics() {
               <CheckCircle2 className="h-5 w-5" />
               Project Progress
             </CardTitle>
-            <CardDescription>Project completion status</CardDescription>
+            <CardDescription>
+              Project completion status
+              {projects.length > 10 && <span className="ml-2 text-xs">(showing top 10 of {projects.length})</span>}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {projects.length === 0 ? (

@@ -1,7 +1,36 @@
-import { pgTable, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
 import { companies } from "./companies.js";
 import { agents } from "./agents.js";
 import { issues } from "./issues.js";
+
+export const collaborationKindEnum = pgEnum("collaboration_kind", [
+  "delegation",
+  "assistance",
+  "review",
+  "pair_programming",
+]);
+
+export const collaborationStatusEnum = pgEnum("collaboration_status", [
+  "pending",
+  "accepted",
+  "declined",
+  "completed",
+  "cancelled",
+]);
+
+export const reviewTypeEnum = pgEnum("review_type", [
+  "code_review",
+  "output_review",
+  "process_review",
+]);
+
+export const reviewStatusEnum = pgEnum("review_status", [
+  "requested",
+  "in_progress",
+  "approved",
+  "changes_requested",
+  "cancelled",
+]);
 
 export const agentCollaborations = pgTable(
   "agent_collaborations",
@@ -11,8 +40,8 @@ export const agentCollaborations = pgTable(
     initiatorAgentId: uuid("initiator_agent_id").notNull().references(() => agents.id),
     collaboratorAgentId: uuid("collaborator_agent_id").notNull().references(() => agents.id),
     issueId: uuid("issue_id").references(() => issues.id),
-    kind: text("kind").notNull(),
-    status: text("status").notNull().default("pending"),
+    kind: collaborationKindEnum("kind").notNull(),
+    status: collaborationStatusEnum("status").notNull().default("pending"),
     requestMessage: text("request_message").notNull(),
     responseMessage: text("response_message"),
     dueBy: timestamp("due_by", { withTimezone: true }),
@@ -37,8 +66,8 @@ export const agentReviews = pgTable(
     reviewerAgentId: uuid("reviewer_agent_id").notNull().references(() => agents.id),
     revieweeAgentId: uuid("reviewee_agent_id").notNull().references(() => agents.id),
     issueId: uuid("issue_id").references(() => issues.id),
-    reviewType: text("review_type").notNull(),
-    status: text("status").notNull().default("requested"),
+    reviewType: reviewTypeEnum("review_type").notNull(),
+    status: reviewStatusEnum("status").notNull().default("requested"),
     feedback: text("feedback"),
     requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
     startedAt: timestamp("started_at", { withTimezone: true }),

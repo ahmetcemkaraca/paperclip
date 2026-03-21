@@ -3,6 +3,14 @@ import type { Db } from "@paperclipai/db";
 import { workflowService } from "../services/workflow.js";
 import { assertCompanyAccess, getActorInfo } from "./authz.js";
 import { logActivity } from "../services/activity-log.js";
+import type { WorkflowStatus } from "@paperclipai/shared";
+
+const VALID_WORKFLOW_STATUSES: WorkflowStatus[] = ["draft", "active", "paused", "archived"];
+
+function validateWorkflowStatus(value: unknown): WorkflowStatus | undefined {
+  if (typeof value !== "string") return undefined;
+  return VALID_WORKFLOW_STATUSES.includes(value as WorkflowStatus) ? (value as WorkflowStatus) : undefined;
+}
 
 export function workflowRoutes(db: Db) {
   const router = Router();
@@ -34,7 +42,7 @@ export function workflowRoutes(db: Db) {
     assertCompanyAccess(req, companyId);
 
     const filters = {
-      status: req.query.status as any,
+      status: validateWorkflowStatus(req.query.status),
       isTemplate: req.query.isTemplate === "true" ? true : req.query.isTemplate === "false" ? false : undefined,
     };
 

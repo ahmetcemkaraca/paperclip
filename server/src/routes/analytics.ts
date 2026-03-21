@@ -3,6 +3,16 @@ import type { Db } from "@paperclipai/db";
 import { analyticsService } from "../services/analytics.js";
 import { assertCompanyAccess } from "./authz.js";
 
+const MAX_DAYS = 365;
+
+function validateDays(days: unknown): number {
+  if (days === undefined) return 30;
+  const parsed = parseInt(String(days), 10);
+  if (isNaN(parsed) || parsed < 1) return 30;
+  if (parsed > MAX_DAYS) return MAX_DAYS;
+  return parsed;
+}
+
 export function analyticsRoutes(db: Db) {
   const router = Router();
   const analytics = analyticsService(db);
@@ -10,7 +20,7 @@ export function analyticsRoutes(db: Db) {
   function parseDateRange(query: Record<string, unknown>) {
     const fromRaw = query.from as string | undefined;
     const toRaw = query.to as string | undefined;
-    const days = query.days ? parseInt(query.days as string, 10) : 30;
+    const days = validateDays(query.days);
 
     if (fromRaw && toRaw) {
       return {

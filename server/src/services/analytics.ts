@@ -159,7 +159,9 @@ export function analyticsService(db: Db) {
 
       const currentSpend = Number(currentPeriodRows[0]?.total ?? 0);
       const previousSpend = Number(previousPeriodRows[0]?.total ?? 0);
-      const trendPercent = previousSpend > 0 ? ((currentSpend - previousSpend) / previousSpend) * 100 : 0;
+      const trendPercent = previousSpend > 0 
+        ? ((currentSpend - previousSpend) / previousSpend) * 100 
+        : (currentSpend > 0 ? 100 : 0);
       const trendDirection: "up" | "down" | "stable" =
         trendPercent > 5 ? "up" : trendPercent < -5 ? "down" : "stable";
 
@@ -306,47 +308,59 @@ export function analyticsService(db: Db) {
         .from(agents)
         .where(eq(agents.companyId, companyId));
 
-      const results: AgentPerformanceMetrics[] = [];
+      const agentIds = agentList.map((a) => a.id);
 
-      for (const agent of agentList) {
-        const runStatsRows = await db
-          .select({
-            total: sql<number>`count(*)::int`.as("total"),
-            successful: sql<number>`count(*) filter (where ${heartbeatRuns.status} = 'success')::int`.as("successful"),
-            failed: sql<number>`count(*) filter (where ${heartbeatRuns.status} = 'error')::int`.as("failed"),
-            avgDuration: sql<number | null>`avg(extract(epoch from (${heartbeatRuns.finishedAt} - ${heartbeatRuns.startedAt})) * 1000) filter (where ${heartbeatRuns.finishedAt} is not null and ${heartbeatRuns.startedAt} is not null)`.as("avgDuration"),
-          })
-          .from(heartbeatRuns)
-          .where(eq(heartbeatRuns.agentId, agent.id));
+      if (agentIds.length === 0) return [];
 
-        const taskStatsRows = await db
-          .select({
-            completed: sql<number>`count(*) filter (where ${issues.status} = 'done')::int`.as("completed"),
-            inProgress: sql<number>`count(*) filter (where ${issues.status} = 'in_progress')::int`.as("inProgress"),
-            blocked: sql<number>`count(*) filter (where ${issues.status} = 'blocked')::int`.as("blocked"),
-          })
-          .from(issues)
-          .where(eq(issues.assigneeAgentId, agent.id));
+      const runStatsRows = await db
+        .select({
+          agentId: heartbeatRuns.agentId,
+          total: sql<number>`count(*)::int`.as("total"),
+          successful: sql<number>`count(*) filter (where ${heartbeatRuns.status} = 'success')::int`.as("successful"),
+          failed: sql<number>`count(*) filter (where ${heartbeatRuns.status} = 'error')::int`.as("failed"),
+          avgDuration: sql<number | null>`avg(extract(epoch from (${heartbeatRuns.finishedAt} - ${heartbeatRuns.startedAt})) * 1000) filter (where ${heartbeatRuns.finishedAt} is not null and ${heartbeatRuns.startedAt} is not null)`.as("avgDuration"),
+        })
+        .from(heartbeatRuns)
+        .where(sql`${heartbeatRuns.agentId} in ${sql.raw(`(${agentIds.map((id) => `'${id}'`).join(",")})`)}`)
+        .groupBy(heartbeatRuns.agentId);
 
-        const costStatsRows = await db
-          .select({
-            totalCost: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`.as("totalCost"),
-            inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`.as("inputTokens"),
-            outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`.as("outputTokens"),
-          })
-          .from(costEvents)
-          .where(eq(costEvents.agentId, agent.id));
+      const taskStatsRows = await db
+        .select({
+          agentId: issues.assigneeAgentId,
+          completed: sql<number>`count(*) filter (where ${issues.status} = 'done')::int`.as("completed"),
+          inProgress: sql<number>`count(*) filter (where ${issues.status} = 'in_progress')::int`.as("inProgress"),
+          blocked: sql<number>`count(*) filter (where ${issues.status} = 'blocked')::int`.as("blocked"),
+        })
+        .from(issues)
+        .where(sql`${issues.assigneeAgentId} in ${sql.raw(`(${agentIds.map((id) => `'${id}'`).join(",")})`)}`)
+        .groupBy(issues.assigneeAgentId);
 
-        const runStats = runStatsRows[0];
-        const taskStats = taskStatsRows[0];
-        const costStats = costStatsRows[0];
+      const costStatsRows = await db
+        .select({
+          agentId: costEvents.agentId,
+          totalCost: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`.as("totalCost"),
+          inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`.as("inputTokens"),
+          outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`.as("outputTokens"),
+        })
+        .from(costEvents)
+        .where(sql`${costEvents.agentId} in ${sql.raw(`(${agentIds.map((id) => `'${id}'`).join(",")})`)}`)
+        .groupBy(costEvents.agentId);
+
+      const runStatsMap = new Map(runStatsRows.map((r) => [r.agentId, r]));
+      const taskStatsMap = new Map(taskStatsRows.map((r) => [r.agentId, r]));
+      const costStatsMap = new Map(costStatsRows.map((r) => [r.agentId, r]));
+
+      const results: AgentPerformanceMetrics[] = agentList.map((agent) => {
+        const runStats = runStatsMap.get(agent.id);
+        const taskStats = taskStatsMap.get(agent.id);
+        const costStats = costStatsMap.get(agent.id);
 
         const runsTotal = Number(runStats?.total ?? 0);
         const runsFailed = Number(runStats?.failed ?? 0);
         const tasksCompleted = Number(taskStats?.completed ?? 0);
         const totalCost = Number(costStats?.totalCost ?? 0);
 
-        results.push({
+        return {
           agentId: agent.id,
           agentName: agent.name,
           agentRole: agent.role,
@@ -363,8 +377,8 @@ export function analyticsService(db: Db) {
           totalOutputTokens: Number(costStats?.outputTokens ?? 0),
           errorRate: runsTotal > 0 ? (runsFailed / runsTotal) * 100 : 0,
           costPerTask: tasksCompleted > 0 ? totalCost / tasksCompleted : null,
-        });
-      }
+        };
+      });
 
       return results.sort((a, b) => b.totalCostCents - a.totalCostCents);
     },
@@ -500,40 +514,49 @@ export function analyticsService(db: Db) {
         .from(projects)
         .where(eq(projects.companyId, companyId));
 
-      const results: ProjectProgressMetrics[] = [];
+      if (projectList.length === 0) return [];
 
-      for (const project of projectList) {
-        const issueStatsRows = await db
-          .select({
-            total: sql<number>`count(*)::int`.as("total"),
-            completed: sql<number>`count(*) filter (where ${issues.status} = 'done')::int`.as("completed"),
-            inProgress: sql<number>`count(*) filter (where ${issues.status} = 'in_progress')::int`.as("inProgress"),
-            blocked: sql<number>`count(*) filter (where ${issues.status} = 'blocked')::int`.as("blocked"),
-          })
-          .from(issues)
-          .where(eq(issues.projectId, project.id));
+      const projectIds = projectList.map((p) => p.id);
+      const leadAgentIds = [...new Set(projectList.map((p) => p.leadAgentId).filter(Boolean))] as string[];
 
-        const costStatsRows = await db
-          .select({
-            total: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`.as("total"),
-          })
-          .from(costEvents)
-          .innerJoin(issues, eq(costEvents.issueId, issues.id))
-          .where(eq(issues.projectId, project.id));
+      const issueStatsRows = await db
+        .select({
+          projectId: issues.projectId,
+          total: sql<number>`count(*)::int`.as("total"),
+          completed: sql<number>`count(*) filter (where ${issues.status} = 'done')::int`.as("completed"),
+          inProgress: sql<number>`count(*) filter (where ${issues.status} = 'in_progress')::int`.as("inProgress"),
+          blocked: sql<number>`count(*) filter (where ${issues.status} = 'blocked')::int`.as("blocked"),
+        })
+        .from(issues)
+        .where(sql`${issues.projectId} in ${sql.raw(`(${projectIds.map((id) => `'${id}'`).join(",")})`)}`)
+        .groupBy(issues.projectId);
 
-        const issueStats = issueStatsRows[0];
-        const costStats = costStatsRows[0];
+      const costStatsRows = await db
+        .select({
+          projectId: issues.projectId,
+          total: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`.as("total"),
+        })
+        .from(costEvents)
+        .innerJoin(issues, eq(costEvents.issueId, issues.id))
+        .where(sql`${issues.projectId} in ${sql.raw(`(${projectIds.map((id) => `'${id}'`).join(",")})`)}`)
+        .groupBy(issues.projectId);
 
-        let leadAgentName: string | null = null;
-        if (project.leadAgentId) {
-          const agentRows = await db
-            .select({ name: agents.name })
+      const agentRows = leadAgentIds.length > 0
+        ? await db
+            .select({ id: agents.id, name: agents.name })
             .from(agents)
-            .where(eq(agents.id, project.leadAgentId));
-          leadAgentName = agentRows[0]?.name ?? null;
-        }
+            .where(sql`${agents.id} in ${sql.raw(`(${leadAgentIds.map((id) => `'${id}'`).join(",")})`)}`)
+        : [];
 
-        results.push({
+      const issueStatsMap = new Map(issueStatsRows.map((r) => [r.projectId, r]));
+      const costStatsMap = new Map(costStatsRows.map((r) => [r.projectId, r]));
+      const agentMap = new Map(agentRows.map((r) => [r.id, r.name]));
+
+      const results: ProjectProgressMetrics[] = projectList.map((project) => {
+        const issueStats = issueStatsMap.get(project.id);
+        const costStats = costStatsMap.get(project.id);
+
+        return {
           projectId: project.id,
           projectName: project.name,
           projectStatus: project.status,
@@ -543,11 +566,11 @@ export function analyticsService(db: Db) {
           inProgressIssues: Number(issueStats?.inProgress ?? 0),
           blockedIssues: Number(issueStats?.blocked ?? 0),
           leadAgentId: project.leadAgentId ?? null,
-          leadAgentName,
+          leadAgentName: project.leadAgentId ? (agentMap.get(project.leadAgentId) ?? null) : null,
           targetDate: project.targetDate ?? null,
           totalCostCents: Number(costStats?.total ?? 0),
-        });
-      }
+        };
+      });
 
       return results.sort((a, b) => b.progressPercent - a.progressPercent);
     },

@@ -1,5 +1,28 @@
-import { pgTable, uuid, text, timestamp, jsonb, integer, index, boolean } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, uuid, text, timestamp, jsonb, integer, index, boolean } from "drizzle-orm/pg-core";
 import { companies } from "./companies.js";
+
+export const workflowStatusEnum = pgEnum("workflow_status", [
+  "draft",
+  "active",
+  "paused",
+  "archived",
+]);
+
+export const workflowRunStatusEnum = pgEnum("workflow_run_status", [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+export const workflowRunStepStatusEnum = pgEnum("workflow_run_step_status", [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "skipped",
+]);
 
 export const workflows = pgTable(
   "workflows",
@@ -8,7 +31,7 @@ export const workflows = pgTable(
     companyId: uuid("company_id").notNull().references(() => companies.id),
     name: text("name").notNull(),
     description: text("description"),
-    status: text("status").notNull().default("draft"),
+    status: workflowStatusEnum("status").notNull().default("draft"),
     triggerConfig: jsonb("trigger_config").notNull().$type<{
       kind: "schedule" | "webhook" | "event" | "manual";
       config: {
@@ -50,7 +73,7 @@ export const workflowRuns = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     workflowId: uuid("workflow_id").notNull().references(() => workflows.id),
     companyId: uuid("company_id").notNull().references(() => companies.id),
-    status: text("status").notNull().default("pending"),
+    status: workflowRunStatusEnum("status").notNull().default("pending"),
     currentNodeId: text("current_node_id"),
     context: jsonb("context").$type<Record<string, unknown>>(),
     startedAt: timestamp("started_at", { withTimezone: true }),
@@ -73,7 +96,7 @@ export const workflowRunSteps = pgTable(
     runId: uuid("run_id").notNull().references(() => workflowRuns.id),
     nodeId: text("node_id").notNull(),
     nodeType: text("node_type").notNull(),
-    status: text("status").notNull().default("pending"),
+    status: workflowRunStepStatusEnum("status").notNull().default("pending"),
     input: jsonb("input").$type<Record<string, unknown>>(),
     output: jsonb("output").$type<Record<string, unknown>>(),
     error: text("error"),
