@@ -19,6 +19,7 @@ export { modelPriceService, computeCostCents, type ModelPrice, type ModelPriceDa
 export { heartbeatService } from "./heartbeat.js";
 export { dashboardService } from "./dashboard.js";
 export { analyticsService } from "./analytics.js";
+export { collaborationService } from "./collaboration.js";
 export { sidebarBadgeService } from "./sidebar-badges.js";
 export { agentNotificationService } from "./agent-notifications.js";
 export { accessService } from "./access.js";

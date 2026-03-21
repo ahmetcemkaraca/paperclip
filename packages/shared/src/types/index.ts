@@ -138,6 +138,20 @@ export type {
   ActivityHeatmapPoint,
   ProjectProgressMetrics,
 } from "./analytics.js";
+export type {
+  CollaborationKind,
+  CollaborationStatus,
+  ReviewType,
+  ReviewStatus,
+  AgentCollaboration,
+  AgentCollaborationDetail,
+  AgentReview,
+  AgentReviewDetail,
+  CreateCollaborationRequest,
+  RespondToCollaborationRequest,
+  CreateReviewRequest,
+  CompleteReviewRequest,
+} from "./collaboration.js";
 export type { ActivityEvent } from "./activity.js";
 export type { SidebarBadges } from "./sidebar-badges.js";
 export type {
