@@ -25,6 +25,7 @@ import type { AdapterExecutionResult, AdapterInvocationMeta, AdapterSessionCodec
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { parseObject, asBoolean, asNumber, appendWithCap, MAX_EXCERPT_BYTES } from "../adapters/utils.js";
 import { costService } from "./costs.js";
+import { pricingService } from "./pricing.js";
 import { companySkillService } from "./company-skills.js";
 import { budgetService, type BudgetEnforcementScope } from "./budgets.js";
 import { secretService } from "./secrets.js";
@@ -1967,7 +1968,7 @@ export function heartbeatService(db: Db) {
     const outputTokens = usage?.outputTokens ?? 0;
     const cachedInputTokens = usage?.cachedInputTokens ?? 0;
     const billingType = normalizeLedgerBillingType(result.billingType);
-    const additionalCostCents = normalizeBilledCostCents(result.costUsd, billingType);
+    let additionalCostCents = normalizeBilledCostCents(result.costUsd, billingType);
     const hasTokenUsage = inputTokens > 0 || outputTokens > 0 || cachedInputTokens > 0;
     const provider = result.provider ?? "unknown";
     const biller = resolveLedgerBiller(result);
@@ -1989,6 +1990,24 @@ export function heartbeatService(db: Db) {
       })
       .where(eq(agentRuntimeState.agentId, agent.id));
 
+    // If provider didn't report a billed cost but tokens were used,
+    // try to compute cost from configured token pricing overrides.
+    let billingCode: string | undefined = undefined;
+    if (additionalCostCents === 0 && hasTokenUsage) {
+      try {
+        const pricing = await pricingService(db).getEffectivePricing(agent.companyId, agent.adapterType ?? null, result.model ?? null);
+        if (pricing && ((pricing.inputPricePerMillionCents ?? 0) > 0 || (pricing.outputPricePerMillionCents ?? 0) > 0)) {
+          const billableInput = Math.max(0, inputTokens - cachedInputTokens);
+          const fromInput = Math.round((billableInput / 1_000_000) * (pricing.inputPricePerMillionCents ?? 0));
+          const fromOutput = Math.round((outputTokens / 1_000_000) * (pricing.outputPricePerMillionCents ?? 0));
+          additionalCostCents = Math.max(0, fromInput + fromOutput);
+          billingCode = `pricing_override:${pricing.id}`;
+        }
+      } catch (e) {
+        // best-effort: ignore pricing lookup failures and proceed
+      }
+    }
+
     if (additionalCostCents > 0 || hasTokenUsage) {
       const costs = costService(db, budgetHooks);
       await costs.createEvent(agent.companyId, {
@@ -2005,6 +2024,7 @@ export function heartbeatService(db: Db) {
         outputTokens,
         costCents: additionalCostCents,
         occurredAt: new Date(),
+        billingCode,
       });
     }
   }
