@@ -30,7 +30,7 @@ export const help: Record<string, string> = {
   model: "Override the default model used by the adapter.",
   thinkingEffort: "Control model reasoning depth. Supported values vary by adapter/model.",
   chrome: "Enable Claude's Chrome integration by passing --chrome.",
-  dangerouslySkipPermissions: "Run Claude without permission prompts. Required for unattended operation.",
+  dangerouslySkipPermissions: "Run unattended by auto-approving adapter permission prompts when supported.",
   dangerouslyBypassSandbox: "Run Codex without sandbox restrictions. Required for filesystem/network access.",
   search: "Enable Codex web search capability during runs.",
   workspaceStrategy: "How Paperclip should realize an execution workspace for this agent. Keep project_primary for normal cwd execution, or use git_worktree for issue-scoped isolated checkouts.",
@@ -55,18 +55,16 @@ export const help: Record<string, string> = {
   cooldownSec: "Minimum seconds between consecutive heartbeat runs.",
   maxConcurrentRuns: "Maximum number of heartbeat runs that can execute simultaneously for this agent.",
   budgetMonthlyCents: "Monthly spending limit in cents. 0 means no limit.",
-  canCreateAgents: "Allow this agent to create new agents in the same company.",
-  canInvokeOtherAgents: "Allow this agent to invoke other agents through wakeup and heartbeat APIs.",
 };
 
 export const adapterLabels: Record<string, string> = {
   claude_local: "Claude (local)",
   codex_local: "Codex (local)",
   gemini_local: "Gemini CLI (local)",
-  kiro_cli: "Kiro CLI",
   opencode_local: "OpenCode (local)",
   openclaw_gateway: "OpenClaw Gateway",
   cursor: "Cursor (local)",
+  hermes_local: "Hermes Agent",
   process: "Process",
   http: "HTTP",
 };
@@ -107,13 +105,13 @@ export function ToggleField({
   hint,
   checked,
   onChange,
-  disabled,
+  toggleTestId,
 }: {
   label: string;
   hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
-  disabled?: boolean;
+  toggleTestId?: string;
 }) {
   return (
     <div className="flex items-center justify-between">
@@ -122,13 +120,13 @@ export function ToggleField({
         {hint && <HintIcon text={hint} />}
       </div>
       <button
+        data-slot="toggle"
+        data-testid={toggleTestId}
         type="button"
         className={cn(
           "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-          disabled && "opacity-50 cursor-not-allowed",
           checked ? "bg-green-600" : "bg-muted"
         )}
-        disabled={disabled}
         onClick={() => onChange(!checked)}
       >
         <span
@@ -173,6 +171,7 @@ export function ToggleWithNumber({
           {hint && <HintIcon text={hint} />}
         </div>
         <button
+          data-slot="toggle"
           className={cn(
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0",
             checked ? "bg-green-600" : "bg-muted"
