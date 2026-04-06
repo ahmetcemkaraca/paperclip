@@ -192,7 +192,6 @@ export type {
   AdapterEnvironmentCheckLevel,
   AdapterEnvironmentTestStatus,
   AdapterEnvironmentCheck,
-    DEFAULT_RATE_LIMIT_KEYWORDS,
   AssetImage,
   Project,
   ProjectCodebase,

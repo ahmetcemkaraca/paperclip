@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AGENT_ADAPTER_TYPES,
   AGENT_ICON_NAMES,
   AGENT_ROLES,
   AGENT_STATUSES,

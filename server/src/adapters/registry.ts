@@ -188,8 +188,12 @@ const hermesLocalAdapter: ServerAdapterModule = {
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: hermesAgentConfigurationDoc,
 };
-const adaptersByType = new Map<string, ServerAdapterModule>(
-  [
+const adaptersByType = new Map<string, ServerAdapterModule>();
+const builtinFallbacks = new Map<string, ServerAdapterModule>();
+const pausedOverrides = new Set<string>();
+
+function registerBuiltInAdapters() {
+  for (const adapter of [
     claudeLocalAdapter,
     codexLocalAdapter,
     openCodeLocalAdapter,

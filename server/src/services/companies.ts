@@ -1,7 +1,8 @@
-import { eq, count } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import {
   companies,
+  companyLogos,
   agents,
   agentApiKeys,
   agentRuntimeState,

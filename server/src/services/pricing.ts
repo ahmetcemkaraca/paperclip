@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import { tokenPricings, costEvents, heartbeatRuns, agents, companies } from "@paperclipai/db";
 import { notFound } from "../errors.js";
@@ -50,7 +50,7 @@ export function pricingService(db: Db) {
               sql`${tokenPricings.effectiveFrom} <= ${now}`,
             ),
           )
-          .orderBy(tokenPricings.effectiveFrom, "desc")
+          .orderBy(desc(tokenPricings.effectiveFrom))
           .then((rows) => rows[0] ?? null);
         if (exact) return exact;
       }
@@ -69,7 +69,7 @@ export function pricingService(db: Db) {
               sql`${tokenPricings.effectiveFrom} <= ${now}`,
             ),
           )
-          .orderBy(tokenPricings.effectiveFrom, "desc")
+          .orderBy(desc(tokenPricings.effectiveFrom))
           .then((rows) => rows[0] ?? null);
         if (ad) return ad;
       }

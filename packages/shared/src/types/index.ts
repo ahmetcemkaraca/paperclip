@@ -12,7 +12,6 @@ export type {
   FeedbackTraceBundleFile,
   FeedbackTraceBundle,
 } from "./feedback.js";
-export type { FallbackConfig, FallbackAction } from "./fallback.js";
 export type { InstanceExperimentalSettings, InstanceGeneralSettings, InstanceSettings } from "./instance.js";
 export type {
   CompanySkillSourceType,
