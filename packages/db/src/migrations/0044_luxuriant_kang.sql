@@ -113,7 +113,6 @@ CREATE TABLE "push_subscriptions" (
 );
 --> statement-breakpoint
 ALTER TABLE "agents" ADD COLUMN "fallback_config" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "agents" ADD COLUMN "last_notifications_read_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "companies" ADD COLUMN "max_concurrent_agents" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
 ALTER TABLE "companies" ADD COLUMN "logo_asset_id" uuid;--> statement-breakpoint
 ALTER TABLE "companies" ADD COLUMN "system_prompt_md" text DEFAULT '' NOT NULL;--> statement-breakpoint

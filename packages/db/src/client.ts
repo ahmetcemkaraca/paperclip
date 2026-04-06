@@ -34,6 +34,20 @@ function splitMigrationStatements(content: string): string[] {
     .filter((statement) => statement.length > 0);
 }
 
+function identifierPattern(): string {
+  return '"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*)';
+}
+
+function matchedIdentifier(match: RegExpMatchArray, index: number): string {
+  return match[index] ?? match[index + 1] ?? "";
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const code = "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  return code === "42701" || code === "42P07" || code === "42710" || code === "23505";
+}
+
 export type MigrationState =
   | { status: "upToDate"; tableCount: number; availableMigrations: string[]; appliedMigrations: string[] }
   | {
@@ -261,7 +275,18 @@ async function applyPendingMigrationsManually(
 
       await runInTransaction(sql, async () => {
         for (const statement of splitMigrationStatements(migrationContent)) {
-          await sql.unsafe(statement);
+          const alreadyApplied = await migrationStatementAlreadyApplied(sql, statement);
+          if (alreadyApplied) continue;
+
+          await sql.unsafe("SAVEPOINT migration_statement");
+          try {
+            await sql.unsafe(statement);
+          } catch (error) {
+            await sql.unsafe("ROLLBACK TO SAVEPOINT migration_statement");
+            if (!isAlreadyExistsError(error)) throw error;
+          }
+
+          await sql.unsafe("RELEASE SAVEPOINT migration_statement");
         }
 
         await recordMigrationHistoryEntry(
@@ -379,26 +404,32 @@ async function migrationStatementAlreadyApplied(
 ): Promise<boolean> {
   const normalized = statement.replace(/\s+/g, " ").trim();
 
-  const createTableMatch = normalized.match(/^CREATE TABLE(?: IF NOT EXISTS)? "([^"]+)"/i);
+  const createTableMatch = normalized.match(
+    new RegExp(`^CREATE TABLE(?: IF NOT EXISTS)?\s+${identifierPattern()}`, "i"),
+  );
   if (createTableMatch) {
-    return tableExists(sql, createTableMatch[1]);
+    return tableExists(sql, matchedIdentifier(createTableMatch, 1));
   }
 
   const addColumnMatch = normalized.match(
-    /^ALTER TABLE "([^"]+)" ADD COLUMN(?: IF NOT EXISTS)? "([^"]+)"/i,
+    new RegExp(`^ALTER TABLE\s+${identifierPattern()}\s+ADD COLUMN(?: IF NOT EXISTS)?\s+${identifierPattern()}`, "i"),
   );
   if (addColumnMatch) {
-    return columnExists(sql, addColumnMatch[1], addColumnMatch[2]);
+    return columnExists(sql, matchedIdentifier(addColumnMatch, 1), matchedIdentifier(addColumnMatch, 3));
   }
 
-  const createIndexMatch = normalized.match(/^CREATE (?:UNIQUE )?INDEX(?: IF NOT EXISTS)? "([^"]+)"/i);
+  const createIndexMatch = normalized.match(
+    new RegExp(`^CREATE (?:UNIQUE )?INDEX(?: IF NOT EXISTS)?\s+${identifierPattern()}`, "i"),
+  );
   if (createIndexMatch) {
-    return indexExists(sql, createIndexMatch[1]);
+    return indexExists(sql, matchedIdentifier(createIndexMatch, 1));
   }
 
-  const addConstraintMatch = normalized.match(/^ALTER TABLE "([^"]+)" ADD CONSTRAINT "([^"]+)"/i);
+  const addConstraintMatch = normalized.match(
+    new RegExp(`^ALTER TABLE\s+${identifierPattern()}\s+ADD CONSTRAINT\s+${identifierPattern()}`, "i"),
+  );
   if (addConstraintMatch) {
-    return constraintExists(sql, addConstraintMatch[2]);
+    return constraintExists(sql, matchedIdentifier(addConstraintMatch, 3));
   }
 
   // If we cannot reason about a statement safely, require manual migration.
