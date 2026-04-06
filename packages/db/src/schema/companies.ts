@@ -17,6 +17,12 @@ export const companies = pgTable(
       .notNull()
       .default(true),
     maxConcurrentAgents: integer("max_concurrent_agents").notNull().default(1),
+    feedbackDataSharingEnabled: boolean("feedback_data_sharing_enabled")
+      .notNull()
+      .default(false),
+    feedbackDataSharingConsentAt: timestamp("feedback_data_sharing_consent_at", { withTimezone: true }),
+    feedbackDataSharingConsentByUserId: text("feedback_data_sharing_consent_by_user_id"),
+    feedbackDataSharingTermsVersion: text("feedback_data_sharing_terms_version"),
     brandColor: text("brand_color"),
     logoAssetId: uuid("logo_asset_id"),
     systemPromptMd: text("system_prompt_md").notNull().default(""),

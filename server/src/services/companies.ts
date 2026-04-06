@@ -53,6 +53,82 @@ export function buildDefaultCompanySystemPrompt(companyName: string) {
 export function companyService(db: Db) {
   const ISSUE_PREFIX_FALLBACK = "CMP";
 
+  const companySelection = {
+    id: companies.id,
+    name: companies.name,
+    description: companies.description,
+    status: companies.status,
+    issuePrefix: companies.issuePrefix,
+    issueCounter: companies.issueCounter,
+    budgetMonthlyCents: companies.budgetMonthlyCents,
+    spentMonthlyCents: companies.spentMonthlyCents,
+    requireBoardApprovalForNewAgents: companies.requireBoardApprovalForNewAgents,
+    feedbackDataSharingEnabled: companies.feedbackDataSharingEnabled,
+    feedbackDataSharingConsentAt: companies.feedbackDataSharingConsentAt,
+    feedbackDataSharingConsentByUserId: companies.feedbackDataSharingConsentByUserId,
+    feedbackDataSharingTermsVersion: companies.feedbackDataSharingTermsVersion,
+    brandColor: companies.brandColor,
+    logoAssetId: companyLogos.assetId,
+    createdAt: companies.createdAt,
+    updatedAt: companies.updatedAt,
+  };
+
+  function enrichCompany<T extends { logoAssetId: string | null }>(company: T) {
+    return {
+      ...company,
+      logoUrl: company.logoAssetId ? `/api/assets/${company.logoAssetId}/content` : null,
+    };
+  }
+
+  function currentUtcMonthWindow(now = new Date()) {
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    return {
+      start: new Date(Date.UTC(year, month, 1, 0, 0, 0, 0)),
+      end: new Date(Date.UTC(year, month + 1, 1, 0, 0, 0, 0)),
+    };
+  }
+
+  async function getMonthlySpendByCompanyIds(
+    companyIds: string[],
+    database: Pick<Db, "select"> = db,
+  ) {
+    if (companyIds.length === 0) return new Map<string, number>();
+    const { start, end } = currentUtcMonthWindow();
+    const rows = await database
+      .select({
+        companyId: costEvents.companyId,
+        spentMonthlyCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+      })
+      .from(costEvents)
+      .where(
+        and(
+          inArray(costEvents.companyId, companyIds),
+          gte(costEvents.occurredAt, start),
+          lt(costEvents.occurredAt, end),
+        ),
+      )
+      .groupBy(costEvents.companyId);
+    return new Map(rows.map((row) => [row.companyId, Number(row.spentMonthlyCents ?? 0)]));
+  }
+
+  async function hydrateCompanySpend<T extends { id: string; spentMonthlyCents: number }>(
+    rows: T[],
+    database: Pick<Db, "select"> = db,
+  ) {
+    const spendByCompanyId = await getMonthlySpendByCompanyIds(rows.map((row) => row.id), database);
+    return rows.map((row) => ({
+      ...row,
+      spentMonthlyCents: spendByCompanyId.get(row.id) ?? 0,
+    }));
+  }
+
+  function getCompanyQuery(database: Pick<Db, "select">) {
+    return database
+      .select(companySelection)
+      .from(companies)
+      .leftJoin(companyLogos, eq(companyLogos.companyId, companies.id));
+  }
   function deriveIssuePrefixBase(name: string) {
     const normalized = name.toUpperCase().replace(/[^A-Z]/g, "");
     return normalized.slice(0, 3) || ISSUE_PREFIX_FALLBACK;

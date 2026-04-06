@@ -35,11 +35,12 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && node -e \"const fs=require('fs'); fs.cpSync('src/migrations', 'dist/migrations', { recursive: true });\"",
+    "check:migrations": "tsx src/check-migration-numbering.ts",
+    "build": "pnpm run check:migrations && tsc && node -e \"const fs=require('fs'); fs.cpSync('src/migrations', 'dist/migrations', { recursive: true });\"",
     "clean": "node -e \"const fs=require('fs'); fs.rmSync('dist', { recursive: true, force: true });\"",
-    "typecheck": "tsc --noEmit",
-    "generate": "tsc -p tsconfig.json && drizzle-kit generate",
-    "migrate": "tsx src/migrate.ts",
+    "typecheck": "pnpm run check:migrations && tsc --noEmit",
+    "generate": "pnpm run check:migrations && tsc -p tsconfig.json && drizzle-kit generate",
+    "migrate": "pnpm run check:migrations && tsx src/migrate.ts",
     "seed": "tsx src/seed.ts"
   },
   "dependencies": {
